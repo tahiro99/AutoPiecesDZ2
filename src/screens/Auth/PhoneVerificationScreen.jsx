@@ -1,22 +1,21 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { PhoneAuthProvider, signInWithCredential, updateProfile } from "firebase/auth";
+import auth from "@react-native-firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "../../config/firebase";
+import { db } from "../../config/firebase";
 import { C } from "../../constants/theme";
 import Btn from "../../components/Btn";
 import { useLanguage } from "../../i18n/languagecontext";
 
 export default function PhoneVerificationScreen({ route, navigation }) {
-  const { t, isRTL } = useLanguage();
-  const { phone, name, role } = route.params || {};
+  const { isRTL } = useLanguage();
+  const { name, role } = route.params || {};
 
-  const [verificationId, setVerificationId] = useState(null);
-  const [code, setCode]         = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [codeSent, setCodeSent] = useState(false);
-  const [phoneInput, setPhoneInput] = useState(phone || "");
+  const [phoneInput, setPhoneInput] = useState("");
+  const [code, setCode]             = useState("");
+  const [confirm, setConfirm]       = useState(null);
+  const [loading, setLoading]       = useState(false);
 
   const align = isRTL ? "right" : "left";
 
@@ -31,19 +30,43 @@ export default function PhoneVerificationScreen({ route, navigation }) {
     const formatted = formatPhone(phoneInput);
     if (formatted.length < 12) {
       Alert.alert(isRTL ? "رقم غير صحيح" : "Numéro invalide",
-        isRTL ? "أدخل رقم هاتف جزائري صحيح" : "Entrez un numéro algérien valide (ex: 0555 123 456)");
+        isRTL ? "أدخل رقم هاتف جزائري صحيح" : "Ex: 0555 123 456");
       return;
     }
     setLoading(true);
     try {
-      const provider = new PhoneAuthProvider(auth);
-      // NOTE: needs reCAPTCHA verifier - will work after native build
-      Alert.alert(
-        isRTL ? "تنبيه" : "Info",
-        isRTL ? "SMS يتطلب تطبيق مبني (APK). يعمل قريباً." : "Le SMS nécessite une build native (APK). Bientôt disponible."
-      );
+      const confirmation = await auth().signInWithPhoneNumber(formatted);
+      setConfirm(confirmation);
     } catch (e) {
       Alert.alert(isRTL ? "خطأ" : "Erreur", e.message);
+    }
+    setLoading(false);
+  };
+
+  const verifyCode = async () => {
+    if (code.length !== 6) {
+      Alert.alert(isRTL ? "الكود 6 أرقام" : "Le code fait 6 chiffres");
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await confirm.confirm(code);
+      const firebaseUser = result.user;
+
+      await setDoc(doc(db, "users", firebaseUser.uid), {
+        uid:         firebaseUser.uid,
+        displayName: name || formatPhone(phoneInput),
+        phone:       formatPhone(phoneInput),
+        role:        role || "client",
+        email:       "",
+        verified:    true,
+        createdAt:   serverTimestamp(),
+      });
+
+      navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+    } catch (e) {
+      Alert.alert(isRTL ? "كود خاطئ" : "Code incorrect",
+        isRTL ? "تحقق من الكود وأعد المحاولة" : "Vérifiez le code et réessayez");
     }
     setLoading(false);
   };
@@ -62,39 +85,58 @@ export default function PhoneVerificationScreen({ route, navigation }) {
         {isRTL ? "تحقق برقم الهاتف" : "Vérification par SMS"}
       </Text>
       <Text style={[s.sub, { textAlign: align }]}>
-        {isRTL ? "أدخل رقم هاتفك الجزائري" : "Entrez votre numéro algérien"}
+        {confirm
+          ? (isRTL ? `أدخل الكود المرسل إلى ${formatPhone(phoneInput)}` : `Entrez le code envoyé au ${formatPhone(phoneInput)}`)
+          : (isRTL ? "أدخل رقم هاتفك الجزائري" : "Entrez votre numéro algérien")}
       </Text>
 
-      <Text style={[s.label, { textAlign: align }]}>
-        {isRTL ? "رقم الهاتف" : "Numéro de téléphone"}
-      </Text>
-      <View style={[s.inputWrap, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-        <View style={s.prefix}>
-          <Text style={s.prefixTxt}>🇩🇿 +213</Text>
-        </View>
-        <TextInput
-          style={[s.input, { textAlign: align }]}
-          placeholder="0555 123 456"
-          placeholderTextColor={C.textDim}
-          value={phoneInput}
-          onChangeText={setPhoneInput}
-          keyboardType="phone-pad"
-          maxLength={13}
-        />
-      </View>
-
-      <Btn onPress={sendCode} loading={loading} style={{ marginTop: 20 }}>
-        {isRTL ? "إرسال الكود" : "Envoyer le code"}
-      </Btn>
-
-      <View style={s.infoBox}>
-        <Ionicons name="information-circle-outline" size={18} color={C.accent} />
-        <Text style={[s.infoTxt, { textAlign: align }]}>
-          {isRTL
-            ? "سيتم تفعيل التحقق بالرسائل النصية بعد نشر التطبيق."
-            : "La vérification SMS sera activée après la publication de l'application."}
-        </Text>
-      </View>
+      {!confirm ? (
+        <>
+          <Text style={[s.label, { textAlign: align }]}>
+            {isRTL ? "رقم الهاتف" : "Numéro de téléphone"}
+          </Text>
+          <View style={[s.inputWrap, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+            <View style={s.prefix}>
+              <Text style={s.prefixTxt}>🇩🇿 +213</Text>
+            </View>
+            <TextInput
+              style={[s.input, { textAlign: align }]}
+              placeholder="0555 123 456"
+              placeholderTextColor={C.textDim}
+              value={phoneInput}
+              onChangeText={setPhoneInput}
+              keyboardType="phone-pad"
+              maxLength={13}
+            />
+          </View>
+          <Btn onPress={sendCode} loading={loading} style={{ marginTop: 20 }}>
+            {isRTL ? "إرسال الكود" : "Envoyer le code SMS"}
+          </Btn>
+        </>
+      ) : (
+        <>
+          <Text style={[s.label, { textAlign: align }]}>
+            {isRTL ? "كود التحقق (6 أرقام)" : "Code de vérification (6 chiffres)"}
+          </Text>
+          <TextInput
+            style={[s.codeInput, { textAlign: "center" }]}
+            placeholder="000000"
+            placeholderTextColor={C.textDim}
+            value={code}
+            onChangeText={setCode}
+            keyboardType="number-pad"
+            maxLength={6}
+          />
+          <Btn onPress={verifyCode} loading={loading} style={{ marginTop: 20 }}>
+            {isRTL ? "تأكيد" : "Confirmer"}
+          </Btn>
+          <TouchableOpacity onPress={() => setConfirm(null)} style={s.resend}>
+            <Text style={s.resendTxt}>
+              {isRTL ? "تغيير الرقم" : "Changer le numéro"}
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   );
 }
@@ -110,6 +152,7 @@ const s = StyleSheet.create({
   prefix:     { backgroundColor: C.surfaceAlt, paddingHorizontal: 14, paddingVertical: 14, borderRightWidth: 1, borderRightColor: C.border },
   prefixTxt:  { fontSize: 14, fontWeight: "700", color: C.text },
   input:      { flex: 1, color: C.text, fontSize: 16, paddingHorizontal: 14, paddingVertical: 14 },
-  infoBox:    { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: C.accent + "10", borderWidth: 1, borderColor: C.accent + "30", borderRadius: 12, padding: 14, marginTop: 24 },
-  infoTxt:    { flex: 1, fontSize: 13, color: C.textMuted, lineHeight: 20 },
+  codeInput:  { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 16, color: C.text, fontSize: 28, fontWeight: "900", letterSpacing: 8 },
+  resend:     { alignItems: "center", paddingVertical: 14, marginTop: 8 },
+  resendTxt:  { fontSize: 14, color: C.accent, fontWeight: "700" },
 });

@@ -12,32 +12,23 @@
       "backgroundColor": "#ffffff"
     },
     "scheme": "autopieces",
+    "plugins": [
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth"
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.autopieces.dz",
-      "associatedDomains": ["applinks:autopieces-dz.firebaseapp.com"]
+      "bundleIdentifier": "com.autopieces.dz"
     },
     "android": {
       "package": "com.autopieces.dz",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
-      "intentFilters": [
-        {
-          "action": "VIEW",
-          "autoVerify": true,
-          "data": [
-            {
-              "scheme": "https",
-              "host": "autopieces-dz.firebaseapp.com"
-            }
-          ],
-          "category": ["BROWSABLE", "DEFAULT"]
-        }
-      ]
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
