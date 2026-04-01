@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "AutoPiecesDZ2",
+    "slug": "AutoPiecesDZ2",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "scheme": "autopieces",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.autopieces.dz",
+      "associatedDomains": ["applinks:autopieces-dz.firebaseapp.com"]
+    },
+    "android": {
+      "package": "com.autopieces.dz",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "autopieces-dz.firebaseapp.com"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "904f8e86-1d8a-4d28-9bd8-b9ad31535e84"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/904f8e86-1d8a-4d28-9bd8-b9ad31535e84"
+    }
+  }
+}

@@ -1,0 +1,191 @@
+import React, { useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { C } from "../../constants/theme";
+import Input from "../../components/Input";
+import Btn from "../../components/Btn";
+import { register, getErrorMessage } from "../../services/auth.service";
+import { useLanguage } from "../../i18n/languagecontext";
+
+export default function RegisterScreen({ navigation }) {
+  const { t, isRTL } = useLanguage();
+  const [role, setRole]         = useState("client");
+  const [name, setName]         = useState("");
+  const [phone, setPhone]       = useState("");
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm]   = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+
+  const align = isRTL ? "right" : "left";
+
+  const handleRegister = async () => {
+    if (!name.trim())        { setError(isRTL ? "الاسم مطلوب" : "Le nom est obligatoire"); return; }
+    if (!phone.trim())       { setError(isRTL ? "رقم الهاتف مطلوب" : "Le téléphone est obligatoire"); return; }
+    if (!email.trim())       { setError(isRTL ? "البريد الإلكتروني مطلوب" : "L'email est obligatoire"); return; }
+    if (password.length < 6) { setError(isRTL ? "كلمة المرور 6 أحرف على الأقل" : "Mot de passe minimum 6 caractères"); return; }
+    if (password !== confirm) { setError(isRTL ? "كلمتا المرور غير متطابقتين" : "Les mots de passe ne correspondent pas"); return; }
+
+    setError(""); setLoading(true);
+    try {
+      await register(email, password, name, role, phone);
+      navigation.replace("EmailVerification", { email: email.trim().toLowerCase() });
+    } catch (e) {
+      setError(getErrorMessage(e));
+    }
+    setLoading(false);
+  };
+
+  const roles = [
+    {
+      v: "client",
+      label: isRTL ? "مشتري" : "Client",
+      icon: "person-outline",
+      desc: isRTL ? "بحث وشراء قطع الغيار" : "Rechercher & acheter des pièces",
+    },
+    {
+      v: "vendeur",
+      label: isRTL ? "بائع" : "Vendeur",
+      icon: "storefront-outline",
+      desc: isRTL ? "نشر وبيع قطع الغيار" : "Publier & vendre des pièces",
+    },
+  ];
+
+  const roleInfo = role === "client"
+    ? (isRTL ? "الوصول: البحث، المفضلة، الطلبات، المراسلة مع البائعين." : "Accès : recherche, favoris, commandes, messagerie avec les vendeurs.")
+    : (isRTL ? "الوصول: نشر الإعلانات، لوحة المبيعات، مراسلة العملاء." : "Accès : publier annonces, dashboard ventes, messagerie clients.");
+
+  return (
+    <ScrollView style={s.container} contentContainerStyle={s.inner} keyboardShouldPersistTaps="handled">
+      <TouchableOpacity onPress={() => navigation.goBack()} style={s.back}>
+        <Ionicons name={isRTL ? "chevron-forward" : "chevron-back"} size={20} color={C.text} />
+      </TouchableOpacity>
+
+      <View style={[s.header, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
+        <Text style={[s.title, { textAlign: align }]}>{t("register")}</Text>
+        <Text style={[s.sub, { textAlign: align }]}>
+          {isRTL ? "اختر نوع حسابك" : "Choisissez votre type de compte"}
+        </Text>
+      </View>
+
+      {/* ── SÉLECTEUR RÔLE ── */}
+      <View style={[s.roleRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+        {roles.map((r) => (
+          <TouchableOpacity key={r.v} onPress={() => setRole(r.v)}
+            style={[s.roleCard, role === r.v && s.roleCardActive]} activeOpacity={0.8}>
+            {role === r.v && (
+              <View style={s.checkBadge}>
+                <Ionicons name="checkmark" size={11} color="#000" />
+              </View>
+            )}
+            <View style={[s.roleIconWrap, role === r.v && s.roleIconActive]}>
+              <Ionicons name={r.icon} size={26} color={role === r.v ? "#000" : C.textMuted} />
+            </View>
+            <Text style={[s.roleTxt, role === r.v && s.roleTxtActive]}>{r.label}</Text>
+            <Text style={s.roleDesc}>{r.desc}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={[s.roleInfo, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+        <Ionicons name="information-circle-outline" size={15} color={C.accent} />
+        <Text style={[s.roleInfoTxt, { textAlign: align }]}>{roleInfo}</Text>
+      </View>
+
+      {error ? (
+        <View style={[s.errorBox, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+          <Ionicons name="alert-circle-outline" size={16} color={C.danger} />
+          <Text style={[s.errorTxt, { textAlign: align }]}>{error}</Text>
+        </View>
+      ) : null}
+
+      <View style={s.form}>
+        <Text style={[s.label, { textAlign: align }]}>{t("fullName")}</Text>
+        <Input icon="person-outline" placeholder={isRTL ? "اسمك الكامل" : "Votre nom"}
+          value={name} onChangeText={setName} rtl={isRTL} />
+
+        <Text style={[s.label, { marginTop: 14, textAlign: align }]}>{t("phone")}</Text>
+        <Input icon="call-outline" placeholder="0555 123 456" value={phone}
+          onChangeText={setPhone} keyboardType="phone-pad" autoCapitalize="none" rtl={isRTL} />
+
+        <Text style={[s.label, { marginTop: 14, textAlign: align }]}>{t("email")}</Text>
+        <Input icon="mail-outline" placeholder="votre@email.com" value={email}
+          onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" rtl={isRTL} />
+
+        <Text style={[s.label, { marginTop: 14, textAlign: align }]}>{t("password")}</Text>
+        <Input icon="lock-closed-outline"
+          placeholder={isRTL ? "6 أحرف على الأقل" : "Minimum 6 caractères"}
+          value={password} onChangeText={setPassword} secureTextEntry rtl={isRTL} />
+
+        <Text style={[s.label, { marginTop: 14, textAlign: align }]}>
+          {isRTL ? "تأكيد كلمة المرور" : "Confirmer mot de passe"}
+        </Text>
+        <Input icon="lock-closed-outline"
+          placeholder={isRTL ? "أعد كتابة كلمة المرور" : "Répéter le mot de passe"}
+          value={confirm} onChangeText={setConfirm} secureTextEntry rtl={isRTL} />
+      </View>
+
+      <Btn onPress={handleRegister} loading={loading}>
+        {loading
+          ? (isRTL ? "جاري الإنشاء..." : "Création en cours...")
+          : (isRTL
+              ? `إنشاء حساب ${role === "client" ? "مشتري" : "بائع"}`
+              : `Créer mon compte ${role}`)}
+      </Btn>
+
+      <View style={s.divider}>
+        <View style={s.divLine} />
+        <Text style={s.divTxt}>{isRTL ? "أو" : "OU"}</Text>
+        <View style={s.divLine} />
+      </View>
+
+      <TouchableOpacity
+        style={s.phoneBtn}
+        onPress={() => navigation.navigate("PhoneVerification", { name, role })}>
+        <Ionicons name="phone-portrait-outline" size={20} color={C.accent} />
+        <Text style={s.phoneBtnTxt}>
+          {isRTL ? "التسجيل برقم الهاتف" : "S'inscrire avec le téléphone"}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => navigation.navigate("Login")} style={s.loginBtn}>
+        <Text style={[s.loginTxt, { textAlign: "center" }]}>
+          {t("hasAccount")}{" "}
+          <Text style={{ color: C.accent, fontWeight: "800" }}>{t("login")}</Text>
+        </Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+const s = StyleSheet.create({
+  container:      { flex: 1, backgroundColor: C.bg },
+  inner:          { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 40 },
+  back:           { width: 40, height: 40, borderRadius: 10, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", marginBottom: 24 },
+  header:         { marginBottom: 20 },
+  title:          { fontSize: 26, fontWeight: "900", color: C.text, marginBottom: 4 },
+  sub:            { fontSize: 13, color: C.textMuted },
+  roleRow:        { gap: 12, marginBottom: 14 },
+  roleCard:       { flex: 1, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, borderRadius: 16, padding: 16, alignItems: "center", gap: 6, position: "relative" },
+  roleCardActive: { borderColor: C.accent, backgroundColor: C.accent + "08" },
+  checkBadge:     { position: "absolute", top: 8, right: 8, width: 20, height: 20, borderRadius: 10, backgroundColor: C.accent, alignItems: "center", justifyContent: "center" },
+  roleIconWrap:   { width: 52, height: 52, borderRadius: 16, backgroundColor: C.surfaceAlt, alignItems: "center", justifyContent: "center" },
+  roleIconActive: { backgroundColor: C.accent },
+  roleTxt:        { fontSize: 15, fontWeight: "800", color: C.textMuted },
+  roleTxtActive:  { color: C.accent },
+  roleDesc:       { fontSize: 10, color: C.textDim, textAlign: "center", lineHeight: 14 },
+  roleInfo:       { gap: 8, backgroundColor: C.accent + "10", borderWidth: 1, borderColor: C.accent + "30", borderRadius: 10, padding: 12, marginBottom: 20, alignItems: "flex-start" },
+  roleInfoTxt:    { flex: 1, fontSize: 12, color: C.textMuted, lineHeight: 17 },
+  errorBox:       { gap: 8, backgroundColor: C.danger + "15", borderWidth: 1, borderColor: C.danger + "40", borderRadius: 10, padding: 12, marginBottom: 16, alignItems: "center" },
+  errorTxt:       { fontSize: 13, color: C.danger, flex: 1 },
+  form:           { marginBottom: 24 },
+  label:          { fontSize: 12, fontWeight: "700", color: C.textMuted, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 },
+  loginBtn:       { alignItems: "center", paddingVertical: 14 },
+  divider:        { flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 16 },
+  divLine:        { flex: 1, height: 1, backgroundColor: C.border },
+  divTxt:         { fontSize: 11, color: C.textDim, fontWeight: "700" },
+  phoneBtn:       { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderWidth: 1.5, borderColor: C.accent, borderRadius: 14, paddingVertical: 14, marginBottom: 8 },
+  phoneBtnTxt:    { fontSize: 14, fontWeight: "800", color: C.accent },
+  loginTxt:       { fontSize: 14, color: C.textMuted },
+});

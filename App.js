@@ -1,0 +1,146 @@
+import React from "react";
+import { View, ActivityIndicator, Text } from "react-native";
+import { NavigationContainer } from "@react-navigation/native";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
+
+import { AuthProvider, useAuthContext } from "./src/context/AuthContext";
+import { LanguageProvider } from "./src/i18n/languagecontext";
+import { navigationRef } from "./src/navigation/navigationRef";
+import { C } from "./src/constants/theme";
+
+import WelcomeScreen           from "./src/screens/Welcome/WelcomeScreen";
+import LoginScreen             from "./src/screens/Auth/LoginScreen";
+import RegisterScreen          from "./src/screens/Auth/RegisterScreen";
+import EmailVerificationScreen from "./src/screens/Auth/EmailVerificationScreen";
+import ForgotPasswordScreen    from "./src/screens/Auth/ForgotPasswordScreen";
+
+import ClientHomeScreen  from "./src/screens/Client/ClientHomeScreen";
+import VendeurHomeScreen from "./src/screens/Home/HomeScreen";
+import SellerDashboard   from "./src/screens/Seller/SellerDashboardScreen";
+
+import CatalogueScreen   from "./src/screens/Catalogue/CatalogueScreen";
+import MessagesScreen    from "./src/screens/Messages/MessagesListScreen";
+import ProfilScreen      from "./src/screens/Profile/ProfilScreen";
+
+import ListingDetail     from "./src/screens/Detail/ListingDetail";
+import ChatScreen        from "./src/screens/Messages/ChatScreen";
+import CartScreen        from "./src/screens/Cart/CartScreen";
+import OrdersScreen      from "./src/screens/Orders/OrdersScreen";
+import FavoritesScreen   from "./src/screens/Favorites/FavoritesScreen";
+import CreateListing     from "./src/screens/Seller/CreateListingScreen";
+import Notifications        from "./src/screens/Notifications/NotificationsScreen";
+import PhoneVerification   from "./src/screens/Auth/PhoneVerificationScreen";
+import { ThemeProvider } from "./src/context/themeContext";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+
+const Tab   = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
+
+const TAB_BAR = {
+  headerShown: false,
+  tabBarStyle: {
+    backgroundColor: C.surface, borderTopColor: C.border,
+    borderTopWidth: 1, height: 64, paddingBottom: 9, paddingTop: 7,
+  },
+  tabBarActiveTintColor:   C.accent,
+  tabBarInactiveTintColor: C.textDim,
+  tabBarLabelStyle: { fontSize: 9, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
+};
+
+const TabIcon = (on, off) => ({ focused, color }) =>
+  <Ionicons name={focused ? on : off} size={22} color={color} />;
+
+function ClientTabs() {
+  return (
+    <Tab.Navigator screenOptions={TAB_BAR}>
+      <Tab.Screen name="Accueil"   component={ClientHomeScreen}
+        options={{ tabBarIcon: TabIcon("home","home-outline") }} />
+      <Tab.Screen name="Catalogue" component={CatalogueScreen}
+        options={{ tabBarIcon: TabIcon("search","search-outline") }} />
+      <Tab.Screen name="Messages"  component={MessagesScreen}
+        options={{ tabBarIcon: TabIcon("chatbubbles","chatbubbles-outline") }} />
+      <Tab.Screen name="Profil"    component={ProfilScreen}
+        options={{ tabBarIcon: TabIcon("person","person-outline") }} />
+    </Tab.Navigator>
+  );
+}
+
+function VendeurTabs() {
+  return (
+    <Tab.Navigator screenOptions={TAB_BAR}>
+      <Tab.Screen name="Accueil"   component={VendeurHomeScreen}
+        options={{ tabBarIcon: TabIcon("home","home-outline") }} />
+      <Tab.Screen name="Catalogue" component={CatalogueScreen}
+        options={{ tabBarIcon: TabIcon("search","search-outline") }} />
+      <Tab.Screen name="Dashboard" component={SellerDashboard}
+        options={{ tabBarLabel: "Dashboard", tabBarIcon: TabIcon("stats-chart","stats-chart-outline") }} />
+      <Tab.Screen name="Messages"  component={MessagesScreen}
+        options={{ tabBarIcon: TabIcon("chatbubbles","chatbubbles-outline") }} />
+      <Tab.Screen name="Profil"    component={ProfilScreen}
+        options={{ tabBarIcon: TabIcon("person","person-outline") }} />
+    </Tab.Navigator>
+  );
+}
+
+
+function MainScreen() {
+  const { profile } = useAuthContext();
+  if (profile?.role === "vendeur") return <VendeurTabs />;
+  return <ClientTabs />;
+}
+
+function RootNavigator() {
+  const { user, profile, loading } = useAuthContext();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: C.bg, alignItems: "center", justifyContent: "center", gap: 14 }}>
+        <ActivityIndicator size="large" color={C.accent} />
+        <Text style={{ color: C.textMuted, fontSize: 13 }}>Chargement...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <NavigationContainer ref={navigationRef}>
+      <Stack.Navigator
+        screenOptions={{ headerShown: false, animation: "slide_from_right" }}
+        initialRouteName={user ? "Main" : "Welcome"}
+      >
+        <Stack.Screen name="Welcome"           component={WelcomeScreen}           />
+        <Stack.Screen name="Login"             component={LoginScreen}             />
+        <Stack.Screen name="Register"          component={RegisterScreen}          />
+        <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
+        <Stack.Screen name="ForgotPassword"    component={ForgotPasswordScreen}    />
+
+        <Stack.Screen name="Main" component={MainScreen} />
+
+        <Stack.Screen name="ListingDetail"   component={ListingDetail}   />
+        <Stack.Screen name="Chat"            component={ChatScreen}      />
+        <Stack.Screen name="Cart"            component={CartScreen}      />
+        <Stack.Screen name="Orders"          component={OrdersScreen}    />
+        <Stack.Screen name="Favorites"       component={FavoritesScreen} />
+        <Stack.Screen name="CreateListing"   component={CreateListing}   />
+        <Stack.Screen name="SellerDashboard" component={SellerDashboard} />
+        <Stack.Screen name="Notifications"      component={Notifications}      />
+        <Stack.Screen name="PhoneVerification" component={PhoneVerification} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <LanguageProvider>
+            <RootNavigator />
+          </LanguageProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
+}
