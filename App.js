@@ -32,6 +32,7 @@ import FavoritesScreen   from "./src/screens/Favorites/FavoritesScreen";
 import CreateListing     from "./src/screens/Seller/CreateListingScreen";
 import Notifications        from "./src/screens/Notifications/NotificationsScreen";
 import PhoneVerification   from "./src/screens/Auth/PhoneVerificationScreen";
+import AllListings         from "./src/screens/AllListings/AllListingsScreen";
 import { ThemeProvider } from "./src/context/themeContext";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -126,6 +127,7 @@ function RootNavigator() {
         <Stack.Screen name="SellerDashboard" component={SellerDashboard} />
         <Stack.Screen name="Notifications"      component={Notifications}      />
         <Stack.Screen name="PhoneVerification" component={PhoneVerification} />
+        <Stack.Screen name="AllListings"       component={AllListings}       />
       </Stack.Navigator>
     </NavigationContainer>
   );
