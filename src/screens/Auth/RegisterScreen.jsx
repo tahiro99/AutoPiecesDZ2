@@ -4,7 +4,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { C } from "../../constants/theme";
 import Input from "../../components/Input";
 import Btn from "../../components/Btn";
-import { register, getErrorMessage } from "../../services/auth.service";
 import { useLanguage } from "../../i18n/languagecontext";
 
 export default function RegisterScreen({ navigation }) {
@@ -15,41 +14,31 @@ export default function RegisterScreen({ navigation }) {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm]   = useState("");
-  const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState("");
 
   const align = isRTL ? "right" : "left";
 
-  const handleRegister = async () => {
+  const handleRegister = () => {
     if (!name.trim())        { setError(isRTL ? "الاسم مطلوب" : "Le nom est obligatoire"); return; }
     if (!phone.trim())       { setError(isRTL ? "رقم الهاتف مطلوب" : "Le téléphone est obligatoire"); return; }
-    if (!email.trim())       { setError(isRTL ? "البريد الإلكتروني مطلوب" : "L'email est obligatoire"); return; }
     if (password.length < 6) { setError(isRTL ? "كلمة المرور 6 أحرف على الأقل" : "Mot de passe minimum 6 caractères"); return; }
     if (password !== confirm) { setError(isRTL ? "كلمتا المرور غير متطابقتين" : "Les mots de passe ne correspondent pas"); return; }
 
-    setError(""); setLoading(true);
-    try {
-      await register(email, password, name, role, phone);
-      navigation.replace("EmailVerification", { email: email.trim().toLowerCase() });
-    } catch (e) {
-      setError(getErrorMessage(e));
-    }
-    setLoading(false);
+    setError("");
+    // Navigate to SMS verification with all registration data
+    navigation.navigate("PhoneVerification", {
+      phone: phone.trim(),
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+      role,
+      fromRegister: true,
+    });
   };
 
   const roles = [
-    {
-      v: "client",
-      label: isRTL ? "مشتري" : "Client",
-      icon: "person-outline",
-      desc: isRTL ? "بحث وشراء قطع الغيار" : "Rechercher & acheter des pièces",
-    },
-    {
-      v: "vendeur",
-      label: isRTL ? "بائع" : "Vendeur",
-      icon: "storefront-outline",
-      desc: isRTL ? "نشر وبيع قطع الغيار" : "Publier & vendre des pièces",
-    },
+    { v: "client",  label: isRTL ? "مشتري" : "Client",  icon: "person-outline",     desc: isRTL ? "بحث وشراء قطع الغيار" : "Rechercher & acheter des pièces" },
+    { v: "vendeur", label: isRTL ? "بائع" : "Vendeur", icon: "storefront-outline", desc: isRTL ? "نشر وبيع قطع الغيار" : "Publier & vendre des pièces" },
   ];
 
   const roleInfo = role === "client"
@@ -64,21 +53,14 @@ export default function RegisterScreen({ navigation }) {
 
       <View style={[s.header, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
         <Text style={[s.title, { textAlign: align }]}>{t("register")}</Text>
-        <Text style={[s.sub, { textAlign: align }]}>
-          {isRTL ? "اختر نوع حسابك" : "Choisissez votre type de compte"}
-        </Text>
+        <Text style={[s.sub, { textAlign: align }]}>{isRTL ? "اختر نوع حسابك" : "Choisissez votre type de compte"}</Text>
       </View>
 
-      {/* ── SÉLECTEUR RÔLE ── */}
       <View style={[s.roleRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         {roles.map((r) => (
           <TouchableOpacity key={r.v} onPress={() => setRole(r.v)}
             style={[s.roleCard, role === r.v && s.roleCardActive]} activeOpacity={0.8}>
-            {role === r.v && (
-              <View style={s.checkBadge}>
-                <Ionicons name="checkmark" size={11} color="#000" />
-              </View>
-            )}
+            {role === r.v && <View style={s.checkBadge}><Ionicons name="checkmark" size={11} color="#000" /></View>}
             <View style={[s.roleIconWrap, role === r.v && s.roleIconActive]}>
               <Ionicons name={r.icon} size={26} color={role === r.v ? "#000" : C.textMuted} />
             </View>
@@ -109,7 +91,9 @@ export default function RegisterScreen({ navigation }) {
         <Input icon="call-outline" placeholder="0555 123 456" value={phone}
           onChangeText={setPhone} keyboardType="phone-pad" autoCapitalize="none" rtl={isRTL} />
 
-        <Text style={[s.label, { marginTop: 14, textAlign: align }]}>{t("email")}</Text>
+        <Text style={[s.label, { marginTop: 14, textAlign: align }]}>
+          {t("email")} <Text style={{ color: C.textDim, fontWeight: "400", textTransform: "none" }}>({isRTL ? "اختياري" : "optionnel"})</Text>
+        </Text>
         <Input icon="mail-outline" placeholder="votre@email.com" value={email}
           onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" rtl={isRTL} />
 
@@ -126,28 +110,9 @@ export default function RegisterScreen({ navigation }) {
           value={confirm} onChangeText={setConfirm} secureTextEntry rtl={isRTL} />
       </View>
 
-      <Btn onPress={handleRegister} loading={loading}>
-        {loading
-          ? (isRTL ? "جاري الإنشاء..." : "Création en cours...")
-          : (isRTL
-              ? `إنشاء حساب ${role === "client" ? "مشتري" : "بائع"}`
-              : `Créer mon compte ${role}`)}
+      <Btn onPress={handleRegister}>
+        {isRTL ? `إنشاء حساب ${role === "client" ? "مشتري" : "بائع"}` : `Créer mon compte ${role}`}
       </Btn>
-
-      <View style={s.divider}>
-        <View style={s.divLine} />
-        <Text style={s.divTxt}>{isRTL ? "أو" : "OU"}</Text>
-        <View style={s.divLine} />
-      </View>
-
-      <TouchableOpacity
-        style={s.phoneBtn}
-        onPress={() => navigation.navigate("PhoneVerification", { name, role })}>
-        <Ionicons name="phone-portrait-outline" size={20} color={C.accent} />
-        <Text style={s.phoneBtnTxt}>
-          {isRTL ? "التسجيل برقم الهاتف" : "S'inscrire avec le téléphone"}
-        </Text>
-      </TouchableOpacity>
 
       <TouchableOpacity onPress={() => navigation.navigate("Login")} style={s.loginBtn}>
         <Text style={[s.loginTxt, { textAlign: "center" }]}>
@@ -182,10 +147,5 @@ const s = StyleSheet.create({
   form:           { marginBottom: 24 },
   label:          { fontSize: 12, fontWeight: "700", color: C.textMuted, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 },
   loginBtn:       { alignItems: "center", paddingVertical: 14 },
-  divider:        { flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 16 },
-  divLine:        { flex: 1, height: 1, backgroundColor: C.border },
-  divTxt:         { fontSize: 11, color: C.textDim, fontWeight: "700" },
-  phoneBtn:       { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderWidth: 1.5, borderColor: C.accent, borderRadius: 14, paddingVertical: 14, marginBottom: 8 },
-  phoneBtnTxt:    { fontSize: 14, fontWeight: "800", color: C.accent },
   loginTxt:       { fontSize: 14, color: C.textMuted },
 });
