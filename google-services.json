@@ -12,7 +12,36 @@
           "package_name": "com.autopieces.dz"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "268280059559-g0q696cd910nrl2u1arodndcj8fq0slq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.autopieces.dz",
+            "certificate_hash": "74eca43c80d9c4c6cb10278648a9a0209763c44f"
+          }
+        },
+        {
+          "client_id": "268280059559-m0tekc29grivd2ku1sjei054h46ug02p.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.autopieces.dz",
+            "certificate_hash": "9b3945bc336a11b347251349b4425fd44e931405"
+          }
+        },
+        {
+          "client_id": "268280059559-u1c8dqj5teg83tr56hosdeg8vafkva2o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.autopieces.dz",
+            "certificate_hash": "db20e8913fdba482e959b093ce1e3ba94d7ce663"
+          }
+        },
+        {
+          "client_id": "268280059559-2l703vua3sct1lls0tn50bk7fn9oeh1q.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAr76gzIWxeeAnMJfMQyTqYy3RSQdGeA-8"
@@ -20,7 +49,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "268280059559-2l703vua3sct1lls0tn50bk7fn9oeh1q.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "268280059559-tusji4fgedrtldviu507b0fdv3io5lt4.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.autopieces.dz"
+              }
+            }
+          ]
         }
       }
     }

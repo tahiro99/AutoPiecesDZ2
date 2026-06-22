@@ -11,6 +11,8 @@ import Spinner from "../../components/Spinner";
 import { useLanguage } from "../../i18n/languagecontext";
 import { navigate as globalNavigate } from "../../navigation/navigationRef";
 
+const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
 export default function AllListingsScreen({ route, navigation }) {
   const { t, isRTL } = useLanguage();
   const { user }     = useAuthContext();
@@ -21,6 +23,11 @@ export default function AllListingsScreen({ route, navigation }) {
   // Optional: filter by sellerId if passed (for vendeur "mes annonces")
   const sellerId  = route.params?.sellerId  || null;
   const condition = route.params?.condition || null;
+  const wilaya    = route.params?.wilaya    || null;
+  const carModel  = route.params?.carModel  || null;
+  const category  = route.params?.category  || null;
+  const priceMin  = route.params?.priceMin  || null;
+  const priceMax  = route.params?.priceMax  || null;
   const title    = route.params?.title    || t("recentListings");
 
   const userId = user?.uid || null;
@@ -29,6 +36,11 @@ export default function AllListingsScreen({ route, navigation }) {
   const filtered = (listings || [])
     .filter((l) => !sellerId  || l.sellerId   === sellerId)
     .filter((l) => !condition || l.condition   === condition)
+    .filter((l) => !wilaya    || norm(l.wilaya) === norm(wilaya))
+    .filter((l) => !carModel  || l.title?.toLowerCase().includes(carModel.toLowerCase()) || (l.compatibleCars || []).some((car) => car.toLowerCase().includes(carModel.toLowerCase())))
+    .filter((l) => !category  || l.category === category)
+    .filter((l) => !priceMin  || (l.price || 0) >= priceMin)
+    .filter((l) => !priceMax  || (l.price || 0) <= priceMax)
     .filter((l) => !search.trim() || l.title?.toLowerCase().includes(search.toLowerCase()));
 
   const toggleFav = (listing) => {

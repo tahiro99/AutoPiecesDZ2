@@ -16,24 +16,29 @@ export async function incrementViews(listingId) {
 }
 
 // ─── MESSAGES ───────────────────────────────────────────────
-// Retourne l'ID d'une conversation existante ou null (sans créer)
-export async function startConversation(listing, buyerId) {
+export async function startConversation(listing, buyerId, buyerName = "") {
   const ex = await getDocs(query(collection(db, "conversations"),
     where("listingId", "==", listing.id), where("buyerId", "==", buyerId)));
   if (!ex.empty) return ex.docs[0].id;
-  // Retourne un objet avec les infos pour créer la conv au premier message
-  return { pending: true, listing, buyerId };
+  return { pending: true, listing, buyerId, buyerName };
 }
 
 export async function sendMessage(conversationId, senderId, text) {
-  // Si c'est un objet pending → créer la conversation d'abord
   if (conversationId?.pending) {
-    const { listing, buyerId } = conversationId;
+    const { listing, buyerId, buyerName } = conversationId;
     const ref = await addDoc(collection(db, "conversations"), {
-      participants: [buyerId, listing.sellerId], buyerId, sellerId: listing.sellerId,
-      listingId: listing.id, listingTitle: listing.title, listingPrice: listing.price,
-      sellerName: listing.sellerName, lastMessage: text, lastMessageAt: serverTimestamp(),
-      unread: 1, createdAt: serverTimestamp(),
+      participants:   [buyerId, listing.sellerId],
+      buyerId,
+      sellerId:       listing.sellerId,
+      buyerName:      buyerName || "",
+      listingId:      listing.id,
+      listingTitle:   listing.title,
+      listingPrice:   listing.price,
+      sellerName:     listing.sellerName,
+      lastMessage:    text,
+      lastMessageAt:  serverTimestamp(),
+      unread:         1,
+      createdAt:      serverTimestamp(),
     });
     const msgRef = doc(collection(db, "conversations", ref.id, "messages"));
     await setDoc(msgRef, { senderId, text, type: "text", read: false, createdAt: serverTimestamp() });
@@ -43,10 +48,13 @@ export async function sendMessage(conversationId, senderId, text) {
   const batch  = writeBatch(db);
   const msgRef = doc(collection(db, "conversations", conversationId, "messages"));
   batch.set(msgRef, { senderId, text, type: "text", read: false, createdAt: serverTimestamp() });
-  batch.update(doc(db, "conversations", conversationId), { lastMessage: text, lastMessageAt: serverTimestamp(), unread: increment(1) });
+  batch.update(doc(db, "conversations", conversationId), {
+    lastMessage: text, lastMessageAt: serverTimestamp(), unread: increment(1),
+  });
   await batch.commit();
   return conversationId;
 }
+
 export async function markAsRead(conversationId) {
   try { await updateDoc(doc(db, "conversations", conversationId), { unread: 0 }); }
   catch (e) { console.log(e); }
@@ -66,11 +74,11 @@ export async function placeOrder(cartItems, buyerId, address, wilaya, paymentMet
       buyerName,
       buyerPhone,
       buyerEmail,
-      status:        "pending",
+      status:       "pending",
       wilaya,
       address,
       paymentMethod,
-      createdAt:     serverTimestamp(),
+      createdAt:    serverTimestamp(),
     })
   ));
 }

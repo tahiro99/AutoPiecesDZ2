@@ -1,46 +1,75 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { auth, db } from "../config/firebase";
+import { registerForPush, unregisterFromPush } from "../services/push.service";
 
 const AuthContext = createContext(null);
-
-// Clé locale pour le rôle (ne dépend pas de Firestore)
 const ROLE_KEY    = "@apz_role";
 const PROFILE_KEY = "@apz_profile";
 
 export function AuthProvider({ children }) {
-  const [user, setUser]       = useState(undefined); // undefined = loading
-  const [profile, setProfile] = useState(null);
+  const [user, setUser]         = useState(undefined);
+  const [profile, setProfile]   = useState(null);
+  const profileUnsubRef         = useRef(null);
+  const prevUidRef              = useRef(null);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
+    const authUnsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Nettoyer le listener précédent
+      if (profileUnsubRef.current) {
+        profileUnsubRef.current();
+        profileUnsubRef.current = null;
+      }
 
-        // ── ÉTAPE 1 : Charger depuis AsyncStorage (instantané, jamais bloqué) ──
-        try {
-          const cached = await AsyncStorage.getItem(PROFILE_KEY + firebaseUser.uid);
-          if (cached) {
-            setProfile(JSON.parse(cached));
-          }
-        } catch (_) {}
+      if (!firebaseUser) {
+        // Retirer le token FCM de l'utilisateur qui se déconnecte
+        if (prevUidRef.current) {
+          unregisterFromPush(prevUidRef.current).catch(() => {});
+          prevUidRef.current = null;
+        }
+        setUser(null);
+        setProfile(null);
+        return;
+      }
 
-        // ── ÉTAPE 2 : Essayer Firestore pour avoir les données à jour ──
-        try {
-          const snap = await getDoc(doc(db, "users", firebaseUser.uid));
+      setUser(firebaseUser);
+
+      // Enregistrer ce device pour les notifications push (une fois par session)
+      if (prevUidRef.current !== firebaseUser.uid) {
+        prevUidRef.current = firebaseUser.uid;
+        registerForPush(firebaseUser.uid).catch(() => {});
+      }
+
+      // Charger cache uniquement si pas encore de profil (premier affichage)
+      try {
+        const cached = await AsyncStorage.getItem(PROFILE_KEY + firebaseUser.uid);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          setProfile(parsed);
+        }
+      } catch (_) {}
+
+      // Listener Firestore — toujours prioritaire sur le cache
+      profileUnsubRef.current = onSnapshot(
+        doc(db, "users", firebaseUser.uid),
+        async (snap) => {
           if (snap.exists()) {
             const data = snap.data();
+
+            // Toujours mettre à jour avec les données Firestore
             setProfile(data);
-            // Mettre à jour le cache local
-            await AsyncStorage.setItem(
+
+            // Mettre à jour le cache avec les données fraîches
+            AsyncStorage.setItem(
               PROFILE_KEY + firebaseUser.uid,
               JSON.stringify(data)
             ).catch(() => {});
+
           } else {
-            // Profil absent dans Firestore → créer depuis le cache local
-            const roleStored = await AsyncStorage.getItem(ROLE_KEY + firebaseUser.uid);
+            // Créer le profil s'il n'existe pas
+            const roleStored = await AsyncStorage.getItem(ROLE_KEY + firebaseUser.uid).catch(() => null);
             const newProfile = {
               uid:         firebaseUser.uid,
               email:       firebaseUser.email || "",
@@ -51,31 +80,24 @@ export function AuthProvider({ children }) {
               createdAt:   serverTimestamp(),
             };
             setProfile(newProfile);
-            // Tenter de créer dans Firestore
             await setDoc(doc(db, "users", firebaseUser.uid), newProfile).catch(() => {});
-            // Sauvegarder localement
-            await AsyncStorage.setItem(
+            AsyncStorage.setItem(
               PROFILE_KEY + firebaseUser.uid,
               JSON.stringify(newProfile)
             ).catch(() => {});
           }
-        } catch (e) {
-          console.log("[AuthContext] Firestore error (check rules):", e.message);
-          // Firestore bloqué → utiliser le rôle stocké localement
-          const roleStored = await AsyncStorage.getItem(ROLE_KEY + firebaseUser.uid).catch(() => null);
-          setProfile((prev) => prev || {
-            uid:         firebaseUser.uid,
-            email:       firebaseUser.email || "",
-            displayName: firebaseUser.displayName || "Utilisateur",
-            role:        roleStored || "client",
-          });
+        },
+        (error) => {
+          console.log("[AuthContext] listener error:", error.message);
+          // En cas d'erreur réseau, garder le profil actuel
         }
-      } else {
-        setUser(null);
-        setProfile(null);
-      }
+      );
     });
-    return () => unsub();
+
+    return () => {
+      authUnsub();
+      if (profileUnsubRef.current) profileUnsubRef.current();
+    };
   }, []);
 
   const loading = user === undefined;

@@ -1,91 +1,91 @@
 /**
- * MapPicker — Sélecteur de position avec OpenStreetMap via WebView
- * Aucune clé API requise !
+ * MapPicker / MapView — map inside a WebView.
+ * Tries Google Maps (if the JS-API key is valid). If Google fails for ANY reason
+ * (key restricted, billing off, API not enabled, offline), it AUTOMATICALLY falls
+ * back to OpenStreetMap so the map always loads. No native module → ships OTA.
  *
- * INSTALLATION REQUISE :
- *   npx expo install expo-web-view
- *   (ou: npx expo install react-native-webview)
- *
- * Usage:
- *   <MapPicker
- *     lat={lat} lng={lng}
- *     onPick={({lat, lng, name}) => ...}
- *   />
+ * To use Google Maps: paste a Maps JavaScript API key below (Application
+ * restrictions = None, Maps JavaScript API enabled, billing on). Otherwise the
+ * map still works via OpenStreetMap — no key needed.
  */
-import React, { useRef, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { WebView } from "react-native-webview";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "../constants/theme";
 
-const MAP_HTML = (lat, lng) => `
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+const GOOGLE_MAPS_JS_KEY = "AIzaSyCjh6p3cLO98CVQKDnRMo8v93bMF7MCqak";
+
+const DEFAULT = { lat: 36.7538, lng: 3.0588 }; // Alger
+
+function mapHtml({ lat, lng, interactive }) {
+  const INT = interactive ? "true" : "false";
+  return `<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  html, body, #map { width:100%; height:100vh; }
-  .leaflet-control-attribution { font-size: 8px; }
-  #info {
-    position: absolute;
-    bottom: 10px; left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0,0,0,0.75);
-    color: #F0A500;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-family: sans-serif;
-    z-index: 999;
-    white-space: nowrap;
-  }
-</style>
-</head>
-<body>
+<style>html,body,#map{height:100%;width:100%;margin:0;padding:0;background:#12141A}</style>
+</head><body>
 <div id="map"></div>
-<div id="info">Appuyez sur la carte pour choisir la position</div>
 <script>
-  var map = L.map('map').setView([${lat}, ${lng}], 13);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-  }).addTo(map);
+  var LAT=${lat}, LNG=${lng}, INTERACTIVE=${INT}, DONE=false;
+  function post(lat,lng){ if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({lat:lat,lng:lng})); }
 
-  var marker = L.marker([${lat}, ${lng}], { draggable: true }).addTo(map);
-  var info = document.getElementById('info');
+  // ---- Google Maps ----
+  function initGoogle(){
+    if(DONE) return; DONE=true;
+    try {
+      var center={lat:LAT,lng:LNG};
+      var map=new google.maps.Map(document.getElementById('map'),{
+        center:center, zoom:INTERACTIVE?14:15,
+        disableDefaultUI:!INTERACTIVE, zoomControl:true, mapTypeControl:false,
+        streetViewControl:false, fullscreenControl:false, gestureHandling:'greedy'
+      });
+      var marker=new google.maps.Marker({position:center, map:map, draggable:INTERACTIVE});
+      if(INTERACTIVE){
+        marker.addListener('dragend', function(e){ post(e.latLng.lat(), e.latLng.lng()); });
+        map.addListener('click', function(e){ marker.setPosition(e.latLng); post(e.latLng.lat(), e.latLng.lng()); });
+      }
+    } catch(e){ DONE=false; loadOSM(); }
+  }
+  // Called by Google when the API key is rejected → fall back
+  window.gm_authFailure = function(){ DONE=false; loadOSM(); };
 
-  function updatePos(lat, lng) {
-    info.textContent = lat.toFixed(5) + ', ' + lng.toFixed(5);
-    window.ReactNativeWebView.postMessage(JSON.stringify({ lat, lng }));
+  // ---- OpenStreetMap fallback ----
+  function loadOSM(){
+    if(DONE) return; DONE=true;
+    var s=document.createElement('script');
+    s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    s.onload=function(){
+      var map=L.map('map',{zoomControl:true}).setView([LAT,LNG],14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+      var icon=L.divIcon({html:'<div style="background:#F0A500;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.5)"></div>',iconSize:[16,16],iconAnchor:[8,8]});
+      var marker=L.marker([LAT,LNG],{icon:icon, draggable:INTERACTIVE}).addTo(map);
+      if(INTERACTIVE){
+        marker.on('dragend', function(e){ var p=e.target.getLatLng(); post(p.lat,p.lng); });
+        map.on('click', function(e){ marker.setLatLng(e.latlng); post(e.latlng.lat,e.latlng.lng); });
+      }
+    };
+    document.head.appendChild(s);
   }
 
-  marker.on('dragend', function(e) {
-    var pos = e.target.getLatLng();
-    updatePos(pos.lat, pos.lng);
-  });
-
-  map.on('click', function(e) {
-    marker.setLatLng(e.latlng);
-    updatePos(e.latlng.lat, e.latlng.lng);
-  });
-
-  updatePos(${lat}, ${lng});
+  // Safety net: if Google hasn't initialised in 4s, use OSM
+  setTimeout(function(){ if(!DONE) loadOSM(); }, 4000);
 </script>
-</body>
-</html>
-`;
+<script async src="https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_JS_KEY}&callback=initGoogle" onerror="loadOSM()"></script>
+</body></html>`;
+}
 
-export default function MapPicker({ lat = 36.7538, lng = 3.0588, onPick, height = 260 }) {
+export default function MapPicker({ lat = DEFAULT.lat, lng = DEFAULT.lng, onPick, height = 260 }) {
   const [loading, setLoading] = useState(true);
-  const [pos, setPos]         = useState({ lat, lng });
+  const [pos, setPos] = useState({ lat, lng });
 
   const handleMsg = (e) => {
     try {
       const data = JSON.parse(e.nativeEvent.data);
-      setPos(data);
-      onPick && onPick(data);
+      if (data?.lat != null && data?.lng != null) {
+        setPos(data);
+        onPick && onPick(data);
+      }
     } catch (_) {}
   };
 
@@ -98,47 +98,26 @@ export default function MapPicker({ lat = 36.7538, lng = 3.0588, onPick, height 
         </View>
       )}
       <WebView
-        source={{ html: MAP_HTML(pos.lat, pos.lng) }}
+        source={{ html: mapHtml({ lat, lng, interactive: true }) }}
         onMessage={handleMsg}
         onLoadEnd={() => setLoading(false)}
         style={mp.map}
         javaScriptEnabled
-        scrollEnabled={false}
+        domStorageEnabled
+        originWhitelist={["*"]}
+        mixedContentMode="always"
       />
       <View style={mp.badge}>
         <Ionicons name="location" size={12} color={C.accent} />
-        <Text style={mp.badgeTxt}>
-          {pos.lat.toFixed(4)}, {pos.lng.toFixed(4)}
-        </Text>
+        <Text style={mp.badgeTxt}>{pos.lat.toFixed(4)}, {pos.lng.toFixed(4)}</Text>
       </View>
     </View>
   );
 }
 
-// ── Vue carte statique (lecture seule) ─────────────────────────────────────
 export function MapView({ lat, lng, title, height = 220 }) {
   const [loading, setLoading] = useState(true);
-
-  const html = `
-  <!DOCTYPE html><html><head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <style>* {margin:0;padding:0;} html,body,#map{width:100%;height:100vh;} .leaflet-control-attribution{font-size:8px;}</style>
-  </head><body>
-  <div id="map"></div>
-  <script>
-    var map = L.map('map', { zoomControl: true, dragging: true }).setView([${lat}, ${lng}], 14);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-    var icon = L.divIcon({
-      html: '<div style="background:#F0A500;width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
-      iconSize: [14,14], iconAnchor: [7,7]
-    });
-    L.marker([${lat}, ${lng}], { icon }).addTo(map)
-      .bindPopup('${(title || "").replace(/'/g, "\\'")}').openPopup();
-  </script>
-  </body></html>`;
-
+  if (lat == null || lng == null) return null;
   return (
     <View style={[mp.wrap, { height }]}>
       {loading && (
@@ -148,11 +127,13 @@ export function MapView({ lat, lng, title, height = 220 }) {
         </View>
       )}
       <WebView
-        source={{ html }}
+        source={{ html: mapHtml({ lat, lng, interactive: false }) }}
         onLoadEnd={() => setLoading(false)}
         style={mp.map}
         javaScriptEnabled
-        scrollEnabled={false}
+        domStorageEnabled
+        originWhitelist={["*"]}
+        mixedContentMode="always"
       />
     </View>
   );
@@ -161,7 +142,7 @@ export function MapView({ lat, lng, title, height = 220 }) {
 const mp = StyleSheet.create({
   wrap:      { borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: C.border, position: "relative" },
   map:       { flex: 1, backgroundColor: C.surfaceAlt },
-  loader:    { position: "absolute", inset: 0, zIndex: 10, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", gap: 8 },
+  loader:    { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 10, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", gap: 8 },
   loaderTxt: { fontSize: 12, color: C.textMuted },
   badge:     { position: "absolute", top: 10, right: 10, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
   badgeTxt:  { fontSize: 10, color: C.accent, fontWeight: "700" },

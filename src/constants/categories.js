@@ -7,4 +7,10 @@ export const CATEGORIES = [
   { id: "transmission",    label: "TRANSMISSION",     letter: "T" },
   { id: "refroidissement", label: "REFROIDISSEMENT",  letter: "R" },
   { id: "echappement",     label: "ECHAPPEMENT",      letter: "X" },
+  { id: "pneus",           label: "PNEUS & JANTES",   letter: "P" },
+  { id: "accessoires",     label: "ACCESSOIRES",      letter: "A" },
+  { id: "vitrage",         label: "VITRAGE & OPTIQUES",letter: "V" },
+  { id: "huiles",          label: "HUILES & FILTRES", letter: "H" },
+  { id: "interieur",       label: "INTÉRIEUR",        letter: "I" },
+  { id: "climatisation",   label: "CLIMATISATION",    letter: "K" },
 ];

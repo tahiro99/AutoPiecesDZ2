@@ -17,7 +17,7 @@ import ScreenHeader from "../../components/ScreenHeader";
 import Btn from "../../components/Btn";
 import MapPicker from "../../components/MapPicker";
 import { useLanguage } from "../../i18n/languagecontext";
-
+import { useSubscription } from "../../hooks/useSubscription";
 // Véhicules compatibles en Algérie
 const VEHICLES = [
   { brand: "Renault",  models: ["Symbol", "Clio II", "Clio III", "Clio IV", "Mégane II", "Mégane III", "Kangoo", "Logan", "Sandero", "Duster", "R19"] },
@@ -50,6 +50,7 @@ const MAX_PHOTOS = 4;
 export default function CreateListingScreen({ navigation }) {
   const { t, isRTL } = useLanguage();
   const { user, profile } = useAuthContext();
+  const { isExpired } = useSubscription();
   const [form, setForm]         = useState(INIT);
   const [photos, setPhotos]     = useState([]);        // { uri, uploading, url }
   const [saving, setSaving]     = useState(false);
@@ -132,17 +133,18 @@ export default function CreateListingScreen({ navigation }) {
     try {
       if (!uri) throw new Error("URI manquante");
 
-      // 1. Lire le fichier en base64
+      // CRITIQUE pour le scaling : compresse 5MB → 200-400KB avant upload
+      const { compressImage } = await import("../../util/compressImage");
+      uri = await compressImage(uri, "listing");
+
       const base64 = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
       if (!base64) throw new Error("Fichier vide");
 
-      // 2. Obtenir le token Firebase Auth
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error("Non connecté");
 
-      // 3. Upload via REST API — pas de Blob, pas de SDK Firebase Storage
       const filename = `listings/${user?.uid || "anon"}/${Date.now()}_${index}.jpg`;
       const encodedPath = encodeURIComponent(filename);
       const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/sustained-hold-486101-b9.firebasestorage.app/o?uploadType=media&name=${encodedPath}`;
@@ -160,7 +162,6 @@ export default function CreateListingScreen({ navigation }) {
         throw new Error(`Upload failed: ${uploadResult.status}`);
       }
 
-      // 4. Construire l'URL publique
       const url = `https://firebasestorage.googleapis.com/v0/b/sustained-hold-486101-b9.firebasestorage.app/o/${encodedPath}?alt=media`;
 
       setPhotos((prev) =>
@@ -171,7 +172,8 @@ export default function CreateListingScreen({ navigation }) {
       setPhotos((prev) =>
         prev.map((p, i) => i === index ? { ...p, uploading: false, error: true } : p)
       );
-      Alert.alert("Erreur upload", e.message || "Réessayez.");
+      console.log("[upload photo]", e?.code, e?.message);
+      Alert.alert("Erreur upload", "Impossible d'envoyer la photo. Réessayez.");
     }
   };
 
@@ -250,7 +252,6 @@ export default function CreateListingScreen({ navigation }) {
         wilaya:      form.wilaya,
         condition:   form.condition,
         description: form.description.trim(),
-        // Première photo réelle ou lettre de catégorie
         img:         photoUrls[0] || CATEGORIES.find((c) => c.id === form.category)?.letter || "P",
         photos:      photoUrls,
         sellerName,
@@ -268,6 +269,30 @@ export default function CreateListingScreen({ navigation }) {
     }
     setSaving(false);
   };
+
+  // ── BLOCAGE ABONNEMENT EXPIRÉ ──
+  if (isExpired) {
+    return (
+      <View style={s.container}>
+        <ScreenHeader title={t("publishAnnounce")} onBack={() => navigation.goBack()} />
+        <View style={s.successWrap}>
+          <View style={[s.successIcon, { backgroundColor: C.danger + "20", borderColor: C.danger }]}>
+            <Ionicons name="lock-closed" size={44} color={C.danger} />
+          </View>
+          <Text style={s.successTitle}>Abonnement expiré</Text>
+          <Text style={s.successSub}>
+            Renouvelez votre abonnement pour pouvoir publier de nouvelles annonces.
+          </Text>
+          <Btn onPress={() => navigation.navigate("Subscription")} style={{ marginTop: 24, width: "100%" }}>
+            Renouveler mon abonnement
+          </Btn>
+          <Text style={{ fontSize: 12, color: C.textDim, marginTop: 16 }}>
+            Paiement par CCP · 0027890277 23
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   // ── SUCCÈS ─────────────────────────────────────────────────────────────────
   if (success) {
@@ -309,42 +334,31 @@ export default function CreateListingScreen({ navigation }) {
           </View>
         ) : null}
 
-        {/* ══════════════════════════════════════════════════════ */}
-        {/* PHOTOS                                                */}
-        {/* ══════════════════════════════════════════════════════ */}
+        {/* PHOTOS */}
         <Text style={s.label}>PHOTOS ({photos.length}/{MAX_PHOTOS})</Text>
         <Text style={s.sublabel}>La première photo sera l'image principale de l'annonce</Text>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.photosRow}>
 
-          {/* Vignettes photos existantes */}
           {photos.map((photo, i) => (
             <View key={i} style={s.photoThumb}>
               <Image source={{ uri: photo.uri }} style={s.photoImg} />
-
-              {/* Badge "1ère photo" */}
               {i === 0 && (
                 <View style={s.mainBadge}>
                   <Text style={s.mainBadgeTxt}>Principal</Text>
                 </View>
               )}
-
-              {/* Overlay chargement */}
               {photo.uploading && (
                 <View style={s.photoOverlay}>
                   <ActivityIndicator color={C.accent} />
                 </View>
               )}
-
-              {/* Erreur upload */}
               {photo.error && (
                 <View style={[s.photoOverlay, { backgroundColor: C.danger + "AA" }]}>
                   <Ionicons name="alert" size={20} color="#fff" />
                 </View>
               )}
-
-              {/* Bouton supprimer */}
               {!photo.uploading && (
                 <TouchableOpacity onPress={() => removePhoto(i)} style={s.deletePhoto}>
                   <Ionicons name="close" size={12} color="#fff" />
@@ -353,7 +367,6 @@ export default function CreateListingScreen({ navigation }) {
             </View>
           ))}
 
-          {/* Bouton ajouter photo */}
           {photos.length < MAX_PHOTOS && (
             <TouchableOpacity onPress={showPhotoOptions} style={s.addPhoto} activeOpacity={0.8}>
               <Ionicons name="camera-outline" size={28} color={C.accent} />
@@ -450,7 +463,6 @@ export default function CreateListingScreen({ navigation }) {
         <Text style={s.label}>{t("compatVehicles")}</Text>
         <Text style={s.sublabel}>{t("compatSub")}</Text>
 
-        {/* Marques */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
           <View style={{ flexDirection: "row", gap: 8 }}>
             {VEHICLES.map((v) => (
@@ -463,7 +475,6 @@ export default function CreateListingScreen({ navigation }) {
           </View>
         </ScrollView>
 
-        {/* Modèles de la marque sélectionnée */}
         {selectedBrand && (
           <View style={s.chipRow}>
             {VEHICLES.find((v) => v.brand === selectedBrand)?.models.map((model) => {
@@ -480,7 +491,6 @@ export default function CreateListingScreen({ navigation }) {
           </View>
         )}
 
-        {/* Liste des véhicules sélectionnés */}
         {compatVehicles.length > 0 && (
           <View style={s.compatList}>
             <Text style={s.compatTitle}>{compatVehicles.length} {t("selectedVehicles")} :</Text>
@@ -560,7 +570,6 @@ const s = StyleSheet.create({
   chipActive:        { borderColor: C.accent, backgroundColor: C.accent + "18" },
   chipLetter:        { fontSize: 10, fontWeight: "900", color: C.accent },
   chipTxt:           { fontSize: 11, fontWeight: "700", color: C.textMuted },
-  // ── Photos ──
   photosRow:         { paddingBottom: 12, gap: 10 },
   photoThumb:        { width: 110, height: 110, borderRadius: 12, overflow: "hidden", position: "relative", borderWidth: 1, borderColor: C.border },
   photoImg:          { width: "100%", height: "100%", resizeMode: "cover" },
@@ -570,7 +579,6 @@ const s = StyleSheet.create({
   deletePhoto:       { position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center" },
   addPhoto:          { width: 110, height: 110, borderRadius: 12, borderWidth: 1.5, borderColor: C.accent + "60", borderStyle: "dashed", backgroundColor: C.accent + "08", alignItems: "center", justifyContent: "center", gap: 6 },
   addPhotoTxt:       { fontSize: 11, fontWeight: "700", color: C.accent },
-  // ── GPS ──
   gpsBtn:            { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.accent + "12", borderWidth: 1.5, borderColor: C.accent + "40", borderRadius: 14, padding: 14, marginBottom: 12 },
   gpsTxt:            { flex: 1, fontSize: 13, fontWeight: "800", color: C.accent },
   locPlaceholder:    { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 30, alignItems: "center", gap: 8, marginBottom: 8 },

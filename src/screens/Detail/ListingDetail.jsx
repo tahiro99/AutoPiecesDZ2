@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Image, useWindowDimensions } from "react-native";
+import {
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  Alert, Image, useWindowDimensions, Share,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "../../constants/theme";
 import { useAuthContext } from "../../context/AuthContext";
 import ScreenHeader from "../../components/ScreenHeader";
 import Tag from "../../components/Tag";
-import Btn from "../../components/Btn";
 import { incrementViews, startConversation, addFavorite, removeFavorite } from "../../services/db.service";
 import { useCollection } from "../../hooks/useCollection";
 import { useLanguage } from "../../i18n/languagecontext";
+import ReportModal from "../../components/ReportModal";
 
 export default function ListingDetail({ route, navigation }) {
   const { t, isRTL }        = useLanguage();
@@ -17,20 +20,35 @@ export default function ListingDetail({ route, navigation }) {
   const { user, profile }   = useAuthContext();
   const [isFav, setIsFav]   = useState(false);
   const [contacting, setContacting] = useState(false);
+  const [showReport, setShowReport] = useState(false);
 
   const { data: ratings } = useCollection("ratings");
-  const sellerRatings = (ratings || []).filter((r) => r.sellerId === listing.sellerId);
+  const sellerRatings = (ratings || []).filter(r => r.sellerId === listing.sellerId);
   const avgRating = sellerRatings.length > 0
     ? (sellerRatings.reduce((s, r) => s + (r.stars || 0), 0) / sellerRatings.length).toFixed(1)
     : null;
-  const uid      = user?.uid || null;
-  const isOwner  = uid === listing.sellerId;
+
+  const uid       = user?.uid || null;
+  const isOwner   = uid === listing.sellerId;
   const isVendeur = profile?.role === "vendeur";
-  const align    = isRTL ? "right" : "left";
-  const row      = isRTL ? "row-reverse" : "row";
+  const align     = isRTL ? "right" : "left";
+  const row       = isRTL ? "row-reverse" : "row";
 
   useEffect(() => { incrementViews(listing.id).catch(() => {}); }, []);
 
+  // ── PARTAGER ──
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        title: listing.title,
+        message: isRTL
+          ? `🔧 ${listing.title}\n💰 ${(listing.price || 0).toLocaleString()} DA\n📍 ${listing.wilaya || "Algérie"}\n\nتجدها على AutoPièces DZ 🇩🇿`
+          : `🔧 ${listing.title}\n💰 ${(listing.price || 0).toLocaleString()} DA\n📍 ${listing.wilaya || "Algérie"}\n\nTrouvez-la sur AutoPièces DZ 🇩🇿\nhttps://autopiecesdz-web.vercel.app`,
+      });
+    } catch (e) {}
+  };
+
+  // ── CONTACTER ──
   const handleContact = async () => {
     if (!user) {
       Alert.alert(t("loginRequired"), t("loginToContact"), [
@@ -41,14 +59,19 @@ export default function ListingDetail({ route, navigation }) {
     }
     setContacting(true);
     try {
-      const convId = await startConversation(listing, uid);
-      navigation.navigate("Chat", { conversationId: convId, sellerName: listing.sellerName, listingTitle: listing.title, listingPrice: listing.price, sellerId: listing.sellerId, buyerId: uid });
+      const convId = await startConversation(listing, uid, profile?.displayName || "Client");
+      navigation.navigate("Chat", {
+        conversationId: convId, sellerName: listing.sellerName,
+        listingTitle: listing.title, listingPrice: listing.price,
+        sellerId: listing.sellerId, buyerId: uid,
+      });
     } catch (e) {
       Alert.alert(t("error"), t("errorContact"));
     }
     setContacting(false);
   };
 
+  // ── ACHETER ──
   const handleBuy = () => {
     if (!user) {
       Alert.alert(t("loginRequired"), isRTL ? "سجل دخولك للشراء." : "Connectez-vous pour acheter.", [
@@ -64,27 +87,39 @@ export default function ListingDetail({ route, navigation }) {
     navigation.navigate("Cart", { directBuy: listing });
   };
 
+  // ── FAVORIS ──
   const toggleFav = async () => {
     if (!user) { navigation.navigate("Login"); return; }
     try {
       if (isFav) { await removeFavorite(uid, listing.id); setIsFav(false); }
       else        { await addFavorite(uid, listing);       setIsFav(true);  }
-    } catch (e) { console.log(e); }
+    } catch (e) {}
   };
 
-  const hasPhotos = listing.photos?.length > 0;
+  const hasPhotos   = listing.photos?.length > 0;
   const conditionNew = listing.condition === "Neuf" || listing.condition === "جديد";
 
   return (
     <View style={s.container}>
-      <ScreenHeader title={t("listingDetail")} onBack={() => navigation.goBack()}
+      <ScreenHeader
+        title={t("listingDetail")}
+        onBack={() => navigation.goBack()}
         right={
-          <TouchableOpacity onPress={toggleFav} style={s.favBtn}>
-            <Ionicons name={isFav ? "heart" : "heart-outline"} size={20} color={isFav ? C.danger : C.text} />
-          </TouchableOpacity>
-        } />
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {/* ── Bouton Partager ── */}
+            <TouchableOpacity onPress={handleShare} style={s.iconBtn}>
+              <Ionicons name="share-social-outline" size={20} color={C.text} />
+            </TouchableOpacity>
+            {/* ── Bouton Favori ── */}
+            <TouchableOpacity onPress={toggleFav} style={s.iconBtn}>
+              <Ionicons name={isFav ? "heart" : "heart-outline"} size={20} color={isFav ? C.danger : C.text} />
+            </TouchableOpacity>
+          </View>
+        }
+      />
 
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* ── PHOTOS ── */}
         {hasPhotos ? (
           <View style={{ width, height: 260 }}>
             <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={{ width, height: 260 }}>
@@ -111,6 +146,7 @@ export default function ListingDetail({ route, navigation }) {
         )}
 
         <View style={s.pad}>
+          {/* ── TITRE + PRIX ── */}
           <View style={[s.topRow, { flexDirection: row }]}>
             <View style={{ flex: 1, marginRight: isRTL ? 0 : 12, marginLeft: isRTL ? 12 : 0 }}>
               <Text style={[s.title, { textAlign: align }]}>{listing.title}</Text>
@@ -129,6 +165,7 @@ export default function ListingDetail({ route, navigation }) {
             </View>
           </View>
 
+          {/* ── STATS ── */}
           <View style={[s.statsRow, { flexDirection: row }]}>
             {[
               [avgRating ? `⭐ ${avgRating}` : "N/A", t("note")],
@@ -142,6 +179,7 @@ export default function ListingDetail({ route, navigation }) {
             ))}
           </View>
 
+          {/* ── INFOS ── */}
           {(listing.brand || listing.model || listing.year || listing.category) ? (
             <View style={s.infoBlock}>
               <Text style={[s.infoTitle, { textAlign: align }]}>{t("information")}</Text>
@@ -161,6 +199,7 @@ export default function ListingDetail({ route, navigation }) {
             </View>
           ) : null}
 
+          {/* ── VÉHICULES COMPATIBLES ── */}
           {listing.compatibleVehicles?.length > 0 && (
             <View style={s.infoBlock}>
               <Text style={[s.infoTitle, { textAlign: align }]}>{t("compatibleVehicles")}</Text>
@@ -174,6 +213,7 @@ export default function ListingDetail({ route, navigation }) {
             </View>
           )}
 
+          {/* ── DESCRIPTION ── */}
           {listing.description ? (
             <View style={s.descBlock}>
               <Text style={[s.infoTitle, { textAlign: align }]}>{t("description")}</Text>
@@ -181,6 +221,7 @@ export default function ListingDetail({ route, navigation }) {
             </View>
           ) : null}
 
+          {/* ── VENDEUR ── */}
           <View style={[s.sellerCard, { flexDirection: row }]}>
             <View style={s.sellerAvatar}>
               <Text style={s.sellerAvatarTxt}>{(listing.sellerName || "V")[0].toUpperCase()}</Text>
@@ -195,8 +236,15 @@ export default function ListingDetail({ route, navigation }) {
                 <Text style={s.verifiedTxt}>{t("verified")}</Text>
               </View>
             )}
+            {!isOwner && user && (
+              <TouchableOpacity onPress={() => setShowReport(true)} style={s.reportBtn} activeOpacity={0.7}>
+                <Ionicons name="flag-outline" size={14} color={C.danger} />
+                <Text style={s.reportTxt}>{isRTL ? "إبلاغ" : "Signaler"}</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
+          {/* ── LIVRAISON ── */}
           <View style={s.deliveryBox}>
             <View style={[s.deliveryRow, { flexDirection: row }]}>
               <Ionicons name="car-outline" size={18} color={C.accent} />
@@ -213,12 +261,22 @@ export default function ListingDetail({ route, navigation }) {
               </View>
             </View>
           </View>
+
+          {/* ── BOUTON PARTAGER (bas de page) ── */}
+          <TouchableOpacity onPress={handleShare} style={[s.shareBtn, { flexDirection: row }]} activeOpacity={0.8}>
+            <Ionicons name="share-social-outline" size={18} color={C.accent} />
+            <Text style={s.shareTxt}>{isRTL ? "مشاركة هذا الإعلان" : "Partager cette annonce"}</Text>
+          </TouchableOpacity>
+
+          <View style={{ height: 20 }} />
         </View>
       </ScrollView>
 
+      {/* ── ACTIONS BAS ── */}
       {!isOwner && (
         <View style={[s.actions, { flexDirection: row }]}>
-          <TouchableOpacity onPress={handleContact} style={[s.contactBtn, { flexDirection: row }]} disabled={contacting}>
+          <TouchableOpacity onPress={handleContact}
+            style={[s.contactBtn, { flexDirection: row }]} disabled={contacting}>
             <Ionicons name="chatbubble-outline" size={18} color={C.accent} />
             <Text style={s.contactTxt}>{contacting ? "..." : t("contact")}</Text>
           </TouchableOpacity>
@@ -241,59 +299,70 @@ export default function ListingDetail({ route, navigation }) {
           </View>
         </View>
       )}
+
+      <ReportModal
+        visible={showReport}
+        onClose={() => setShowReport(false)}
+        targetUserId={listing.sellerId}
+        targetUserName={listing.sellerName}
+      />
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  container:      { flex: 1, backgroundColor: C.bg },
-  favBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
-  imgFull:        { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
-  imgBlock:       { height: 240, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", borderBottomWidth: 1, borderBottomColor: C.border, position: "relative" },
-  imgLetter:      { fontSize: 100, fontWeight: "900", color: C.accent },
-  newBadge:       { position: "absolute", top: 16, left: 16, backgroundColor: C.success, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  newTxt:         { fontSize: 10, fontWeight: "900", color: "#fff" },
-  pad:            { padding: 16 },
-  topRow:         { alignItems: "flex-start", marginBottom: 16 },
-  title:          { fontSize: 20, fontWeight: "900", color: C.text, lineHeight: 26, marginBottom: 8 },
-  tagsRow:        { flexWrap: "wrap", gap: 6 },
-  priceBlock:     { minWidth: 90 },
-  price:          { fontSize: 26, fontWeight: "900", color: C.accent },
-  priceDA:        { fontSize: 13, color: C.textMuted, fontWeight: "700", marginTop: -4 },
-  stock:          { fontSize: 11, fontWeight: "700", marginTop: 4 },
-  statsRow:       { gap: 10, marginBottom: 16 },
-  statCard:       { flex: 1, backgroundColor: C.surface, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 12, alignItems: "center" },
-  statN:          { fontSize: 15, fontWeight: "900", color: C.text },
-  statL:          { fontSize: 9, color: C.textMuted, fontWeight: "700", marginTop: 2 },
-  infoBlock:      { backgroundColor: C.surface, borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 14 },
-  infoTitle:      { fontSize: 13, fontWeight: "800", color: C.text, marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 },
-  infoGrid:       { flexWrap: "wrap", gap: 10 },
-  infoItem:       { width: "47%", backgroundColor: C.surfaceAlt, borderRadius: 10, padding: 10 },
-  infoLabel:      { fontSize: 10, color: C.textDim, marginBottom: 3, fontWeight: "700", textTransform: "uppercase" },
-  infoValue:      { fontSize: 13, fontWeight: "700", color: C.text },
-  compatTag:      { backgroundColor: C.accent + "15", borderRadius: 8, borderWidth: 1, borderColor: C.accent + "30", paddingHorizontal: 10, paddingVertical: 5 },
-  compatTagTxt:   { fontSize: 11, fontWeight: "700", color: C.accent },
-  descBlock:      { backgroundColor: C.surface, borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 14 },
-  descTxt:        { fontSize: 14, color: C.textMuted, lineHeight: 22 },
-  sellerCard:     { alignItems: "center", gap: 12, backgroundColor: C.surface, borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 14 },
-  sellerAvatar:   { width: 44, height: 44, borderRadius: 22, backgroundColor: C.accent + "20", borderWidth: 2, borderColor: C.accent, alignItems: "center", justifyContent: "center" },
-  sellerAvatarTxt:{ fontSize: 18, fontWeight: "900", color: C.accent },
-  sellerName:     { fontSize: 15, fontWeight: "800", color: C.text },
-  sellerMeta:     { fontSize: 11, color: C.textMuted, marginTop: 2 },
-  verifiedBadge:  { alignItems: "center", gap: 4, backgroundColor: C.success + "15", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
-  verifiedTxt:    { fontSize: 10, color: C.success, fontWeight: "800" },
-  deliveryBox:    { backgroundColor: C.surface, borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 8, gap: 12 },
-  deliveryRow:    { alignItems: "flex-start", gap: 12 },
-  deliveryTitle:  { fontSize: 13, fontWeight: "800", color: C.text, marginBottom: 2 },
-  deliverySub:    { fontSize: 11, color: C.textMuted },
-  actions:        { gap: 12, padding: 16, paddingBottom: 28, backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.border },
-  contactBtn:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 2, borderColor: C.accent, borderRadius: 14, paddingVertical: 14 },
-  contactTxt:     { fontSize: 15, fontWeight: "800", color: C.accent },
-  buyBtn:         { flex: 2, alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.accent, borderRadius: 14, paddingVertical: 14 },
-  buyBtnDisabled: { backgroundColor: C.textDim, opacity: 0.5 },
-  buyTxt:         { fontSize: 15, fontWeight: "900", color: "#000" },
-  ownerBadge:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.accent + "15", borderRadius: 14, paddingVertical: 14, borderWidth: 1, borderColor: C.accent + "30" },
-  ownerTxt:       { fontSize: 14, fontWeight: "800", color: C.accent },
-  photoCount:     { position: "absolute", bottom: 12, right: 12, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
-  photoCountTxt:  { fontSize: 11, color: "#fff", fontWeight: "700" },
+  container:       { flex: 1, backgroundColor: C.bg },
+  iconBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+  imgFull:         { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  imgBlock:        { height: 240, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", borderBottomWidth: 1, borderBottomColor: C.border, position: "relative" },
+  imgLetter:       { fontSize: 100, fontWeight: "900", color: C.accent },
+  newBadge:        { position: "absolute", top: 16, left: 16, backgroundColor: C.success, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  newTxt:          { fontSize: 10, fontWeight: "900", color: "#fff" },
+  pad:             { padding: 16 },
+  topRow:          { alignItems: "flex-start", marginBottom: 16 },
+  title:           { fontSize: 20, fontWeight: "900", color: C.text, lineHeight: 26, marginBottom: 8 },
+  tagsRow:         { flexWrap: "wrap", gap: 6 },
+  priceBlock:      { minWidth: 90 },
+  price:           { fontSize: 26, fontWeight: "900", color: C.accent },
+  priceDA:         { fontSize: 13, color: C.textMuted, fontWeight: "700", marginTop: -4 },
+  stock:           { fontSize: 11, fontWeight: "700", marginTop: 4 },
+  statsRow:        { gap: 10, marginBottom: 16 },
+  statCard:        { flex: 1, backgroundColor: C.surface, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 12, alignItems: "center" },
+  statN:           { fontSize: 15, fontWeight: "900", color: C.text },
+  statL:           { fontSize: 9, color: C.textMuted, fontWeight: "700", marginTop: 2 },
+  infoBlock:       { backgroundColor: C.surface, borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 14 },
+  infoTitle:       { fontSize: 13, fontWeight: "800", color: C.text, marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 },
+  infoGrid:        { flexWrap: "wrap", gap: 10 },
+  infoItem:        { width: "47%", backgroundColor: C.surfaceAlt, borderRadius: 10, padding: 10 },
+  infoLabel:       { fontSize: 10, color: C.textDim, marginBottom: 3, fontWeight: "700", textTransform: "uppercase" },
+  infoValue:       { fontSize: 13, fontWeight: "700", color: C.text },
+  compatTag:       { backgroundColor: C.accent + "15", borderRadius: 8, borderWidth: 1, borderColor: C.accent + "30", paddingHorizontal: 10, paddingVertical: 5 },
+  compatTagTxt:    { fontSize: 11, fontWeight: "700", color: C.accent },
+  descBlock:       { backgroundColor: C.surface, borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 14 },
+  descTxt:         { fontSize: 14, color: C.textMuted, lineHeight: 22 },
+  sellerCard:      { alignItems: "center", gap: 12, backgroundColor: C.surface, borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 14, flexWrap: "wrap" },
+  sellerAvatar:    { width: 44, height: 44, borderRadius: 22, backgroundColor: C.accent + "20", borderWidth: 2, borderColor: C.accent, alignItems: "center", justifyContent: "center" },
+  sellerAvatarTxt: { fontSize: 18, fontWeight: "900", color: C.accent },
+  sellerName:      { fontSize: 15, fontWeight: "800", color: C.text },
+  sellerMeta:      { fontSize: 11, color: C.textMuted, marginTop: 2 },
+  verifiedBadge:   { alignItems: "center", gap: 4, backgroundColor: C.success + "15", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
+  verifiedTxt:     { fontSize: 10, color: C.success, fontWeight: "800" },
+  reportBtn:       { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: C.danger + "12", borderRadius: 8, borderWidth: 1, borderColor: C.danger + "30" },
+  reportTxt:       { fontSize: 11, color: C.danger, fontWeight: "700" },
+  deliveryBox:     { backgroundColor: C.surface, borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 14, gap: 12 },
+  deliveryRow:     { alignItems: "flex-start", gap: 12 },
+  deliveryTitle:   { fontSize: 13, fontWeight: "800", color: C.text, marginBottom: 2 },
+  deliverySub:     { fontSize: 11, color: C.textMuted },
+  shareBtn:        { alignItems: "center", justifyContent: "center", gap: 10, borderWidth: 1.5, borderColor: C.accent + "50", borderRadius: 14, paddingVertical: 13, backgroundColor: C.accent + "08" },
+  shareTxt:        { fontSize: 14, fontWeight: "700", color: C.accent },
+  actions:         { gap: 12, padding: 16, paddingBottom: 28, backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.border },
+  contactBtn:      { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 2, borderColor: C.accent, borderRadius: 14, paddingVertical: 14 },
+  contactTxt:      { fontSize: 15, fontWeight: "800", color: C.accent },
+  buyBtn:          { flex: 2, alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.accent, borderRadius: 14, paddingVertical: 14 },
+  buyBtnDisabled:  { backgroundColor: C.textDim, opacity: 0.5 },
+  buyTxt:          { fontSize: 15, fontWeight: "900", color: "#000" },
+  ownerBadge:      { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.accent + "15", borderRadius: 14, paddingVertical: 14, borderWidth: 1, borderColor: C.accent + "30" },
+  ownerTxt:        { fontSize: 14, fontWeight: "800", color: C.accent },
+  photoCount:      { position: "absolute", bottom: 12, right: 12, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
+  photoCountTxt:   { fontSize: 11, color: "#fff", fontWeight: "700" },
 });

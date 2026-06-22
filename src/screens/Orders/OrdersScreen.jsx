@@ -1,15 +1,17 @@
 import React, { useState } from "react";
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, TextInput, Alert } from "react-native";
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "../../constants/theme";
 import { useAuthContext } from "../../context/AuthContext";
 import { useCollection } from "../../hooks/useCollection";
 import { doc, updateDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../../config/firebase";
+import { createNotif } from "../../services/Notif.service";
 import ScreenHeader from "../../components/ScreenHeader";
 import Tag from "../../components/Tag";
 import Spinner from "../../components/Spinner";
 import { useLanguage } from "../../i18n/languagecontext";
+import ReportModal from "../../components/ReportModal"; // ← AJOUT
 
 const STATUS_C = { pending: C.warning, confirmed: C.info, shipped: C.accent, delivered: C.success, cancelled: C.danger };
 const STEPS = ["pending", "confirmed", "shipped", "delivered"];
@@ -44,7 +46,6 @@ function RatingModal({ visible, order, userId, onClose, isRTL, t }) {
     }
     setSaving(true);
     try {
-      // Save rating
       await addDoc(collection(db, "ratings"), {
         orderId:    order.id,
         sellerId:   order.sellerId,
@@ -56,34 +57,42 @@ function RatingModal({ visible, order, userId, onClose, isRTL, t }) {
         comment:    comment.trim(),
         createdAt:  serverTimestamp(),
       });
-
-      // Mark order as rated
       await updateDoc(doc(db, "orders", order.id), { rated: true });
-
-      // Update seller rating in users collection
-      // Get all ratings for this seller and compute average
+      // Notifier le vendeur de la nouvelle évaluation
+      createNotif(order.sellerId, {
+        type: "rating",
+        title: `⭐ Nouvelle évaluation : ${stars}/5`,
+        body: comment.trim() || "Vous avez reçu une nouvelle note.",
+        data: { screen: "SellerDashboard" },
+      }).catch(() => {});
       Alert.alert(
         isRTL ? "شكراً!" : "Merci !",
         isRTL ? "تم إرسال تقييمك." : "Votre avis a été envoyé.",
         [{ text: "OK", onPress: onClose }]
       );
     } catch (e) {
-      Alert.alert(isRTL ? "خطأ" : "Erreur", e.message);
+      console.log("[rating]", e?.code, e?.message);
+      Alert.alert(
+        isRTL ? "خطأ" : "Erreur",
+        isRTL ? "تعذر إرسال التقييم. حاول مرة أخرى." : "Impossible d'envoyer la note. Réessayez."
+      );
     }
     setSaving(false);
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <View style={rm.overlay}>
-        <View style={rm.sheet}>
-          <View style={rm.handle} />
-          <Text style={rm.title}>{isRTL ? "قيّم البائع" : "Noter le vendeur"}</Text>
-          <Text style={rm.sellerName}>{order?.sellerName}</Text>
-          <Text style={rm.listing} numberOfLines={1}>{order?.listingTitle}</Text>
-
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View style={rm.overlay}>
+          <View style={rm.sheet}>
+            <View style={rm.handle} />
+            <Text style={rm.title}>{isRTL ? "قيّم البائع" : "Noter le vendeur"}</Text>
+            <Text style={rm.sellerName}>{order?.sellerName}</Text>
+            <Text style={rm.listing} numberOfLines={1}>{order?.listingTitle}</Text>
           <StarRating value={stars} onChange={setStars} />
-
           <Text style={rm.label}>{isRTL ? "تعليق (اختياري)" : "Commentaire (optionnel)"}</Text>
           <TextInput
             style={[rm.input, { textAlign: isRTL ? "right" : "left" }]}
@@ -94,19 +103,18 @@ function RatingModal({ visible, order, userId, onClose, isRTL, t }) {
             multiline
             maxLength={200}
           />
-
           <TouchableOpacity
             style={[rm.btn, stars === 0 && { opacity: 0.5 }]}
             onPress={handleSubmit}
             disabled={saving || stars === 0}>
             <Text style={rm.btnTxt}>{saving ? "..." : (isRTL ? "إرسال التقييم" : "Envoyer l'avis")}</Text>
           </TouchableOpacity>
-
           <TouchableOpacity onPress={onClose} style={rm.cancelBtn}>
             <Text style={rm.cancelTxt}>{isRTL ? "إلغاء" : "Annuler"}</Text>
           </TouchableOpacity>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -119,6 +127,7 @@ export default function OrdersScreen({ navigation }) {
   const USER_ID = user?.uid || "";
   const myOrders = (orders || []).filter((o) => o.buyerId === USER_ID);
   const [ratingOrder, setRatingOrder] = useState(null);
+  const [reportTarget, setReportTarget] = useState(null); // ← AJOUT { userId, userName }
 
   const statusLabel = (status) => {
     const map = { pending: t("pending"), confirmed: t("confirmed"), shipped: t("shipping"), delivered: t("delivered"), cancelled: t("archived") };
@@ -130,8 +139,11 @@ export default function OrdersScreen({ navigation }) {
       <ScreenHeader title={`${t("myOrdersTitle")} (${myOrders.length})`} onBack={() => navigation.goBack()} />
 
       {loading ? <Spinner /> : (
-        <FlatList data={myOrders} keyExtractor={(item) => item.id}
-          contentContainerStyle={s.list} showsVerticalScrollIndicator={false}
+        <FlatList
+          data={myOrders}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={s.list}
+          showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const step = STEPS.indexOf(item.status);
             const isDelivered = item.status === "delivered";
@@ -143,8 +155,13 @@ export default function OrdersScreen({ navigation }) {
                   <Text style={s.orderId}>#{(item.id || "").slice(-6).toUpperCase()}</Text>
                   <Tag color={STATUS_C[item.status] || C.textMuted}>{statusLabel(item.status)}</Tag>
                 </View>
-                <Text style={[s.itemTitle, { textAlign: isRTL ? "right" : "left" }]} numberOfLines={2}>{item.listingTitle}</Text>
-                <Text style={[s.itemMeta, { textAlign: isRTL ? "right" : "left" }]}>{item.sellerName} · {item.wilaya}</Text>
+
+                <Text style={[s.itemTitle, { textAlign: isRTL ? "right" : "left" }]} numberOfLines={2}>
+                  {item.listingTitle}
+                </Text>
+                <Text style={[s.itemMeta, { textAlign: isRTL ? "right" : "left" }]}>
+                  {item.sellerName} · {item.wilaya}
+                </Text>
 
                 <View style={s.progressRow}>
                   {STEPS.map((st, i) => (
@@ -156,28 +173,48 @@ export default function OrdersScreen({ navigation }) {
                 </View>
                 <View style={s.progressLabels}>
                   {STEPS.map((st, i) => (
-                    <Text key={st} style={[s.stepLabel, i <= step && { color: C.accent }]}>{statusLabel(st)}</Text>
+                    <Text key={st} style={[s.stepLabel, i <= step && { color: C.accent }]}>
+                      {statusLabel(st)}
+                    </Text>
                   ))}
                 </View>
 
                 <View style={[s.cardFooter, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-                  <Text style={s.date}>{item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("fr-FR") : ""}</Text>
+                  <Text style={s.date}>
+                    {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("fr-FR") : ""}
+                  </Text>
                   <Text style={s.total}>{((item.price || 0) * (item.qty || 1)).toLocaleString()} DA</Text>
                 </View>
 
-                {/* Rating button */}
-                {isDelivered && !alreadyRated && (
-                  <TouchableOpacity
-                    style={s.rateBtn}
-                    onPress={() => setRatingOrder(item)}>
-                    <Ionicons name="star-outline" size={16} color="#F0A500" />
-                    <Text style={s.rateTxt}>{isRTL ? "قيّم البائع" : "Noter le vendeur"}</Text>
-                  </TouchableOpacity>
-                )}
-                {isDelivered && alreadyRated && (
-                  <View style={s.ratedBadge}>
-                    <Ionicons name="star" size={14} color="#F0A500" />
-                    <Text style={s.ratedTxt}>{isRTL ? "تم التقييم ✓" : "Noté ✓"}</Text>
+                {/* ── Boutons post-livraison ── */}
+                {isDelivered && (
+                  <View style={[s.deliveredActions, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+                    {/* Rating */}
+                    {!alreadyRated ? (
+                      <TouchableOpacity
+                        style={[s.actionBtn, s.rateBtn]}
+                        onPress={() => setRatingOrder(item)}>
+                        <Ionicons name="star-outline" size={15} color="#F0A500" />
+                        <Text style={s.rateTxt}>
+                          {isRTL ? "قيّم البائع" : "Noter"}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={[s.actionBtn, s.ratedBadge]}>
+                        <Ionicons name="star" size={14} color="#F0A500" />
+                        <Text style={s.ratedTxt}>{isRTL ? "تم ✓" : "Noté ✓"}</Text>
+                      </View>
+                    )}
+
+                    {/* ← AJOUT : Signaler le vendeur */}
+                    <TouchableOpacity
+                      style={[s.actionBtn, s.reportBtn]}
+                      onPress={() => setReportTarget({ userId: item.sellerId, userName: item.sellerName })}>
+                      <Ionicons name="flag-outline" size={15} color={C.danger} />
+                      <Text style={s.reportTxt}>
+                        {isRTL ? "إبلاغ" : "Signaler"}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
@@ -189,7 +226,8 @@ export default function OrdersScreen({ navigation }) {
               <Text style={s.emptyTitle}>{t("noOrders")}</Text>
               <Text style={s.emptySub}>{t("noOrdersSub")}</Text>
             </View>
-          } />
+          }
+        />
       )}
 
       {ratingOrder && (
@@ -202,35 +240,50 @@ export default function OrdersScreen({ navigation }) {
           onClose={() => setRatingOrder(null)}
         />
       )}
+
+      {/* ← AJOUT : modal signalement */}
+      {reportTarget && (
+        <ReportModal
+          visible={true}
+          onClose={() => setReportTarget(null)}
+          targetUserId={reportTarget.userId}
+          targetUserName={reportTarget.userName}
+        />
+      )}
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  container:      { flex: 1, backgroundColor: C.bg },
-  list:           { padding: 12 },
-  card:           { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 16, marginBottom: 12 },
-  cardTop:        { justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  orderId:        { fontSize: 11, color: C.textMuted, fontWeight: "700" },
-  itemTitle:      { fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 4 },
-  itemMeta:       { fontSize: 11, color: C.textMuted, marginBottom: 14 },
-  progressRow:    { flexDirection: "row", alignItems: "center", marginBottom: 6 },
-  dot:            { width: 10, height: 10, borderRadius: 5, backgroundColor: C.border },
-  dotDone:        { backgroundColor: C.accent },
-  line:           { flex: 1, height: 3, backgroundColor: C.border },
-  lineDone:       { backgroundColor: C.accent },
-  progressLabels: { flexDirection: "row", justifyContent: "space-between", marginBottom: 14 },
-  stepLabel:      { fontSize: 8, color: C.textDim, fontWeight: "600", flex: 1, textAlign: "center" },
-  cardFooter:     { justifyContent: "space-between", paddingTop: 12, borderTopWidth: 1, borderTopColor: C.border },
-  date:           { fontSize: 11, color: C.textMuted },
-  total:          { fontSize: 18, fontWeight: "900", color: C.accent },
-  rateBtn:        { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 12, backgroundColor: "#F0A50015", borderWidth: 1, borderColor: "#F0A50040", borderRadius: 12, paddingVertical: 10 },
-  rateTxt:        { fontSize: 13, fontWeight: "800", color: "#F0A500" },
-  ratedBadge:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 12, paddingVertical: 8 },
-  ratedTxt:       { fontSize: 12, color: "#F0A500", fontWeight: "700" },
-  empty:          { alignItems: "center", paddingTop: 80, gap: 12 },
-  emptyTitle:     { fontSize: 16, fontWeight: "800", color: C.text },
-  emptySub:       { fontSize: 12, color: C.textMuted },
+  container:       { flex: 1, backgroundColor: C.bg },
+  list:            { padding: 12 },
+  card:            { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 16, marginBottom: 12 },
+  cardTop:         { justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  orderId:         { fontSize: 11, color: C.textMuted, fontWeight: "700" },
+  itemTitle:       { fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 4 },
+  itemMeta:        { fontSize: 11, color: C.textMuted, marginBottom: 14 },
+  progressRow:     { flexDirection: "row", alignItems: "center", marginBottom: 6 },
+  dot:             { width: 10, height: 10, borderRadius: 5, backgroundColor: C.border },
+  dotDone:         { backgroundColor: C.accent },
+  line:            { flex: 1, height: 3, backgroundColor: C.border },
+  lineDone:        { backgroundColor: C.accent },
+  progressLabels:  { flexDirection: "row", justifyContent: "space-between", marginBottom: 14 },
+  stepLabel:       { fontSize: 8, color: C.textDim, fontWeight: "600", flex: 1, textAlign: "center" },
+  cardFooter:      { justifyContent: "space-between", paddingTop: 12, borderTopWidth: 1, borderTopColor: C.border, marginBottom: 12 },
+  date:            { fontSize: 11, color: C.textMuted },
+  total:           { fontSize: 18, fontWeight: "900", color: C.accent },
+  // ← AJOUT styles boutons post-livraison
+  deliveredActions:{ gap: 10, marginTop: 4 },
+  actionBtn:       { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, paddingVertical: 10 },
+  rateBtn:         { backgroundColor: "#F0A50015", borderWidth: 1, borderColor: "#F0A50040" },
+  rateTxt:         { fontSize: 13, fontWeight: "800", color: "#F0A500" },
+  ratedBadge:      { backgroundColor: C.surfaceAlt },
+  ratedTxt:        { fontSize: 12, color: "#F0A500", fontWeight: "700" },
+  reportBtn:       { backgroundColor: C.danger + "12", borderWidth: 1, borderColor: C.danger + "30" },
+  reportTxt:       { fontSize: 13, fontWeight: "700", color: C.danger },
+  empty:           { alignItems: "center", paddingTop: 80, gap: 12 },
+  emptyTitle:      { fontSize: 16, fontWeight: "800", color: C.text },
+  emptySub:        { fontSize: 12, color: C.textMuted },
 });
 
 const rm = StyleSheet.create({

@@ -1,0 +1,48 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Firebase Storage Security Rules — AutoPièces DZ
+// IMPORTANT : copie ce contenu dans Firebase Console → Storage → Rules
+// ─────────────────────────────────────────────────────────────────────────────
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function imageSizeOk() {
+      // max 5 MB et type image (anti-abus stockage)
+      return request.resource.size < 5 * 1024 * 1024
+             && request.resource.contentType.matches('image/.*');
+    }
+
+    // ── Photos d'annonces (publiques en lecture) ──
+    match /listings/{userId}/{file=**} {
+      allow read: if true;
+      allow write: if isOwner(userId) && imageSizeOk();
+    }
+
+    // ── Photos de chat (uploader + l'autre participant) ──
+    // Pour simplicité : signed-in users only. Le download token rend le lien
+    // privé en pratique. Hardening futur : passer par Cloud Functions.
+    match /chat/{userId}/{file=**} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) && imageSizeOk();
+    }
+
+    // ── Photos de profil (publiques) ──
+    match /profiles/{userId}/{file=**} {
+      allow read: if true;
+      allow write: if isOwner(userId) && imageSizeOk();
+    }
+
+    // ── Reçus CCP (privés : vendeur + admin via CF) ──
+    match /subscription_receipts/{userId}/{file=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && imageSizeOk();
+    }
+
+    // Tout le reste : refuser
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

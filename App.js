@@ -23,18 +23,21 @@ import SellerDashboard   from "./src/screens/Seller/SellerDashboardScreen";
 import CatalogueScreen   from "./src/screens/Catalogue/CatalogueScreen";
 import MessagesScreen    from "./src/screens/Messages/MessagesListScreen";
 import ProfilScreen      from "./src/screens/Profile/ProfilScreen";
-
+import SubscriptionScreen from "./src/screens/Subscription/SubscriptionScreen";
 import ListingDetail     from "./src/screens/Detail/ListingDetail";
 import ChatScreen        from "./src/screens/Messages/ChatScreen";
 import CartScreen        from "./src/screens/Cart/CartScreen";
 import OrdersScreen      from "./src/screens/Orders/OrdersScreen";
 import FavoritesScreen   from "./src/screens/Favorites/FavoritesScreen";
 import CreateListing     from "./src/screens/Seller/CreateListingScreen";
-import Notifications        from "./src/screens/Notifications/NotificationsScreen";
-import PhoneVerification   from "./src/screens/Auth/PhoneVerificationScreen";
-import AllListings         from "./src/screens/AllListings/AllListingsScreen";
+import Notifications     from "./src/screens/Notifications/NotificationsScreen";
+import PhoneVerification from "./src/screens/Auth/PhoneVerificationScreen";
+import AllListings       from "./src/screens/AllListings/AllListingsScreen";
+
 import { ThemeProvider } from "./src/context/themeContext";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import NotifBanner from "./src/components/NotifBanner";
+import ErrorBoundary from "./src/components/ErrorBoundary";
 
 const Tab   = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -85,7 +88,6 @@ function VendeurTabs() {
   );
 }
 
-
 function MainScreen() {
   const { profile } = useAuthContext();
   if (profile?.role === "vendeur") return <VendeurTabs />;
@@ -93,7 +95,7 @@ function MainScreen() {
 }
 
 function RootNavigator() {
-  const { user, profile, loading } = useAuthContext();
+  const { user, loading } = useAuthContext();
 
   if (loading) {
     return (
@@ -115,34 +117,36 @@ function RootNavigator() {
         <Stack.Screen name="Register"          component={RegisterScreen}          />
         <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
         <Stack.Screen name="ForgotPassword"    component={ForgotPasswordScreen}    />
-
-        <Stack.Screen name="Main" component={MainScreen} />
-
-        <Stack.Screen name="ListingDetail"   component={ListingDetail}   />
-        <Stack.Screen name="Chat"            component={ChatScreen}      />
-        <Stack.Screen name="Cart"            component={CartScreen}      />
-        <Stack.Screen name="Orders"          component={OrdersScreen}    />
-        <Stack.Screen name="Favorites"       component={FavoritesScreen} />
-        <Stack.Screen name="CreateListing"   component={CreateListing}   />
-        <Stack.Screen name="SellerDashboard" component={SellerDashboard} />
-        <Stack.Screen name="Notifications"      component={Notifications}      />
-        <Stack.Screen name="PhoneVerification" component={PhoneVerification} />
-        <Stack.Screen name="AllListings"       component={AllListings}       />
+        <Stack.Screen name="Main"              component={MainScreen}              />
+        <Stack.Screen name="ListingDetail"     component={ListingDetail}           />
+        <Stack.Screen name="Chat"              component={ChatScreen}              />
+        <Stack.Screen name="Cart"              component={CartScreen}              />
+        <Stack.Screen name="Orders"            component={OrdersScreen}            />
+        <Stack.Screen name="Favorites"         component={FavoritesScreen}         />
+        <Stack.Screen name="CreateListing"     component={CreateListing}           />
+        <Stack.Screen name="SellerDashboard"   component={SellerDashboard}         />
+        <Stack.Screen name="Notifications"     component={Notifications}           />
+        <Stack.Screen name="PhoneVerification" component={PhoneVerification}       />
+        <Stack.Screen name="AllListings"       component={AllListings}             />
+        <Stack.Screen name="Subscription" component={SubscriptionScreen} />
       </Stack.Navigator>
+      <NotifBanner />
     </NavigationContainer>
   );
 }
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <AuthProvider>
-          <LanguageProvider>
-            <RootNavigator />
-          </LanguageProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <LanguageProvider>
+              <RootNavigator />
+            </LanguageProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }

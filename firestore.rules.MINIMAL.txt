@@ -1,0 +1,93 @@
+// ─────────────────────────────────────────────────────────────────
+// VERSION MINIMALE & SAFE des règles
+// Seuls 2 changements vs tes règles actuelles :
+//   1. users : empêche auto-promotion (role/verified/subscription)
+//   2. orders : restreint à acheteur + vendeur (pas tous les users connectés)
+// Tout le reste reste comme ton existant.
+// ─────────────────────────────────────────────────────────────────
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ✅ FIX CVE-1 : users protégés contre auto-promotion
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && (
+        request.auth.token.email == "taharboussag13@gmail.com"
+        || (
+          request.auth.uid == userId
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.verified == resource.data.verified
+          && (
+            !('subscription' in resource.data) && !('subscription' in request.resource.data)
+            || ('subscription' in resource.data && request.resource.data.subscription == resource.data.subscription)
+          )
+        )
+      );
+      allow delete: if false;
+    }
+
+    // (INCHANGÉ) listings
+    match /listings/{listingId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.sellerId == request.auth.uid;
+    }
+
+    // (INCHANGÉ) ratings
+    match /ratings/{ratingId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.buyerId == request.auth.uid;
+    }
+
+    // ✅ FIX CVE-2 : orders limités aux participants
+    match /orders/{orderId} {
+      allow read: if request.auth != null && (
+        resource.data.buyerId == request.auth.uid
+        || resource.data.sellerId == request.auth.uid
+        || request.auth.token.email == "taharboussag13@gmail.com"
+      );
+      allow create, update: if request.auth != null;
+      allow delete: if false;
+    }
+
+    // (INCHANGÉ) conversations
+    match /conversations/{convId} {
+      allow read, create, update: if request.auth != null;
+      allow delete: if false;
+      match /messages/{msgId} {
+        allow read, create: if request.auth != null;
+        allow update, delete: if false;
+      }
+    }
+
+    // (INCHANGÉ) favorites
+    match /favorites/{favId} {
+      allow read, create, delete: if request.auth != null;
+    }
+
+    // (INCHANGÉ) notifications
+    match /notifications/{userId}/items/{itemId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null;
+    }
+
+    // (INCHANGÉ) reports
+    match /reports/{reportId} {
+      allow create: if request.auth != null;
+      allow read, update, delete: if request.auth != null;
+    }
+
+    // (INCHANGÉ) subscription
+    match /subscription_requests/{docId} {
+      allow read: if true;
+      allow read, write: if request.auth != null;
+    }
+    match /subscription_history/{docId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

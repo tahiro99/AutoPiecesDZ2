@@ -1,0 +1,169 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Firestore Security Rules — AutoPièces DZ (base "tahar2")
+// IMPORTANT : copie ce contenu dans Firebase Console → Firestore → Rules
+//             (s'assurer que la base sélectionnée est "tahar2", pas "default")
+// ─────────────────────────────────────────────────────────────────────────────
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function isAdmin()    { return isSignedIn() && request.auth.token.email == "taharboussag13@gmail.com"; }
+    function userRole()   {
+      return isSignedIn()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+    function isDeliveryPartner() {
+      return userRole() == "yalidine" || userRole() == "delivery";
+    }
+
+    // ── USERS ───────────────────────────────────────────────────────────────
+    // Lecture publique (displayName, photoURL, role, wilaya, ratings). Email/
+    // phone/fcmTokens restent visibles — nécessaire pour le login par téléphone.
+    // Hardening futur : sous-collection /users/{uid}/private/info.
+    //
+    // CRITIQUE : les champs sensibles (role, verified, subscription) ne sont
+    // PAS modifiables par l'utilisateur lui-même — seulement par l'admin ou
+    // les Cloud Functions (qui utilisent l'Admin SDK, contourne les rules).
+    match /users/{userId} {
+      allow read: if true;
+      allow delete: if false;
+
+      // Création : uniquement le user lui-même, role limité à client/vendeur
+      allow create: if isOwner(userId)
+                    && request.resource.data.uid == userId
+                    && request.resource.data.role in ['client', 'vendeur'] // jamais "yalidine"/"admin" à la création
+                    && (!('verified' in request.resource.data) || request.resource.data.verified == false)
+                    && !('subscription' in request.resource.data
+                         && request.resource.data.subscription.status == 'active');
+
+      // Mise à jour : le user peut éditer ses infos basiques, jamais ses
+      // privilèges. L'admin peut tout modifier.
+      allow update: if isAdmin()
+                    || (isOwner(userId)
+                        && request.resource.data.role == resource.data.role
+                        && request.resource.data.verified == resource.data.verified
+                        && request.resource.data.subscription == resource.data.subscription
+                        && request.resource.data.uid == resource.data.uid
+                        && request.resource.data.createdAt == resource.data.createdAt);
+    }
+
+    // ── LISTINGS ────────────────────────────────────────────────────────────
+    match /listings/{listingId} {
+      // Public sauf annonces bloquées par la modération
+      allow read: if resource == null
+                  || resource.data.status != "blocked"
+                  || isOwner(resource.data.sellerId)
+                  || isAdmin();
+      allow create: if isSignedIn()
+                    && request.resource.data.sellerId == request.auth.uid
+                    && request.resource.data.price is number
+                    && request.resource.data.price > 0
+                    && request.resource.data.price < 50000000
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() >= 3
+                    && request.resource.data.title.size() <= 200;
+      allow update: if isOwner(resource.data.sellerId) || isAdmin();
+      allow delete: if isOwner(resource.data.sellerId) || isAdmin();
+    }
+
+    // ── RATINGS ─────────────────────────────────────────────────────────────
+    match /ratings/{ratingId} {
+      allow read: if true; // notes publiques
+      allow create: if isSignedIn()
+                    && request.resource.data.buyerId == request.auth.uid
+                    && request.resource.data.stars is int
+                    && request.resource.data.stars >= 1
+                    && request.resource.data.stars <= 5;
+      allow update, delete: if isOwner(resource.data.buyerId) || isAdmin();
+    }
+
+    // ── ORDERS ──────────────────────────────────────────────────────────────
+    // Acheteur + vendeur + partenaire livraison (Yalidine) + admin
+    match /orders/{orderId} {
+      allow read: if isSignedIn()
+                  && (resource.data.buyerId == request.auth.uid
+                      || resource.data.sellerId == request.auth.uid
+                      || isDeliveryPartner()
+                      || isAdmin());
+      allow create: if isSignedIn()
+                    && request.resource.data.buyerId == request.auth.uid;
+      // Le vendeur ou l'acheteur peuvent gérer le statut commande.
+      // Le partenaire livraison ne touche QUE les champs de livraison.
+      allow update: if isSignedIn()
+                    && (resource.data.sellerId == request.auth.uid
+                        || resource.data.buyerId == request.auth.uid
+                        || isDeliveryPartner()
+                        || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // ── CONVERSATIONS + MESSAGES ────────────────────────────────────────────
+    match /conversations/{convId} {
+      allow read, update: if isSignedIn()
+                          && (request.auth.uid in resource.data.participants
+                              || resource.data.buyerId == request.auth.uid
+                              || resource.data.sellerId == request.auth.uid
+                              || isAdmin());
+      allow create: if isSignedIn()
+                    && request.auth.uid in request.resource.data.participants;
+      allow delete: if isAdmin();
+
+      match /messages/{msgId} {
+        // Participants seulement
+        function inConv() {
+          let conv = get(/databases/$(database)/documents/conversations/$(convId)).data;
+          return isSignedIn() && (request.auth.uid in conv.participants
+                                  || conv.buyerId == request.auth.uid
+                                  || conv.sellerId == request.auth.uid);
+        }
+        allow read: if inConv() || isAdmin();
+        allow create: if inConv()
+                      && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // ── FAVORITES ───────────────────────────────────────────────────────────
+    match /favorites/{favId} {
+      allow read, create, delete: if isSignedIn()
+                                  && request.resource.data.userId == request.auth.uid
+                                  || (resource != null && resource.data.userId == request.auth.uid)
+                                  || isAdmin();
+    }
+
+    // ── NOTIFICATIONS ───────────────────────────────────────────────────────
+    // Lecture : propriétaire seulement
+    // Écriture : ouverte (Cloud Functions + apps existants utilisent ce chemin)
+    match /notifications/{userId}/items/{itemId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isSignedIn();
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // ── REPORTS ─────────────────────────────────────────────────────────────
+    match /reports/{reportId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.reporterId == request.auth.uid;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ── SUBSCRIPTION ────────────────────────────────────────────────────────
+    match /subscription_requests/{docId} {
+      allow read: if isSignedIn()
+                  && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+    match /subscription_history/{docId} {
+      allow read: if isSignedIn()
+                  && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false; // Cloud Functions seulement (admin SDK ignore les rules)
+    }
+  }
+}

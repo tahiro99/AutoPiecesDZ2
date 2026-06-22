@@ -5,29 +5,20 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "../../constants/theme";
+import { useLanguage } from "../../i18n/languagecontext";
+import { CAR_BRANDS, CAR_MODELS } from "../../constants/carBrands";
 // Et dans le composant :
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DONNÉES CATALOGUE — Marché algérien 100% réel
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BRANDS = [
-  { id: "renault",  name: "Renault",  models: ["Symbol", "Clio II", "Clio III", "Clio IV", "Mégane II", "Mégane III", "Kangoo", "Laguna", "R19"] },
-  { id: "dacia",    name: "Dacia",    models: ["Logan I", "Logan II", "Logan III", "Sandero I", "Sandero II", "Sandero Stepway", "Duster", "Dokker"] },
-  { id: "peugeot",  name: "Peugeot",  models: ["206", "207", "208", "301", "307", "308", "405", "406", "Partner", "Expert"] },
-  { id: "fiat",     name: "Fiat",     models: ["Tipo", "500", "Punto", "Palio", "Doblò", "Bravo", "Stilo"] },
-  { id: "hyundai",  name: "Hyundai",  models: ["Accent", "i10", "Grand i10", "i20", "i30", "Tucson", "Atos", "Getz", "Elantra"] },
-  { id: "volkswagen",name:"VW",       models: ["Golf IV", "Golf V", "Golf VI", "Golf VII", "Polo", "Caddy", "Passat", "Touareg"] },
-  { id: "toyota",   name: "Toyota",   models: ["Corolla", "Yaris", "RAV4", "Hilux", "Land Cruiser", "Camry", "Auris"] },
-  { id: "kia",      name: "Kia",      models: ["Picanto", "Rio", "Sportage", "Ceed", "Seltos", "Sorento"] },
-  { id: "citroen",  name: "Citroën",  models: ["C3", "C4", "C5", "Berlingo", "C-Elysée", "Xsara Picasso", "Dispatch"] },
-  { id: "seat",     name: "Seat",     models: ["Ibiza", "Leon", "Arona", "Ateca", "Toledo"] },
-  { id: "geely",    name: "Geely",    models: ["GX3 Pro", "Coolray", "Emgrand", "Starray", "Okavango"] },
-  { id: "chery",    name: "Chery",    models: ["Tiggo 2", "Tiggo 4 Pro", "Tiggo 7 Pro", "Tiggo 8 Pro", "Arrizo 5", "Arrizo 6"] },
-  { id: "suzuki",   name: "Suzuki",   models: ["Swift", "Alto", "Vitara", "Jimny", "Celerio", "Baleno"] },
-  { id: "skoda",    name: "Škoda",    models: ["Fabia", "Octavia", "Rapid", "Kodiaq"] },
-  { id: "nissan",   name: "Nissan",   models: ["Micra", "Sunny", "Qashqai", "Navara", "Patrol"] },
-];
+// Construit la liste à partir du fichier centralisé (35+ marques dont chinoises)
+const BRANDS = CAR_BRANDS.map((name) => ({
+  id: name.toLowerCase().replace(/\s+/g, "-"),
+  name,
+  models: CAR_MODELS[name] || [],
+}));
 
 const CATEGORIES = [
   {
@@ -453,6 +444,7 @@ const pc = StyleSheet.create({
 // ÉCRAN PRINCIPAL
 // ─────────────────────────────────────────────────────────────────────────────
 export default function CatalogueScreen() {
+  const { isRTL }                     = useLanguage();
   const [search, setSearch]           = useState("");
   const [selectedCat, setSelectedCat] = useState(null);
   const [brandModal, setBrandModal]   = useState(false);
@@ -482,8 +474,10 @@ export default function CatalogueScreen() {
     <View style={s.container}>
       {/* ── HEADER ── */}
       <View style={[s.header, { paddingTop: Platform.OS === "ios" ? 54 : 24 }]}>
-        <Text style={s.title}>Catalogue Pièces</Text>
-        <Text style={s.subtitle}>Marché algérien — Prix indicatifs en DA</Text>
+        <Text style={s.title}>{isRTL ? "كتالوج القطع" : "Catalogue Pièces"}</Text>
+        <Text style={s.subtitle}>
+          {isRTL ? "السوق الجزائرية — أسعار إرشادية بالدج" : "Marché algérien — Prix indicatifs en DA"}
+        </Text>
       </View>
 
       {/* ── BARRE DE RECHERCHE ── */}
@@ -492,7 +486,7 @@ export default function CatalogueScreen() {
           <Ionicons name="search-outline" size={18} color={C.textDim} />
           <TextInput
             style={s.searchInput}
-            placeholder="Chercher une pièce… (plaquette, radiateur…)"
+            placeholder={isRTL ? "ابحث عن قطعة… (فرامل، رادياتور…)" : "Chercher une pièce… (plaquette, radiateur…)"}
             placeholderTextColor={C.textDim}
             value={search}
             onChangeText={(v) => { setSearch(v); setSelectedCat(null); }}
@@ -513,7 +507,7 @@ export default function CatalogueScreen() {
             ? `${selectedBrand.name} ${selectedModel}`
             : selectedBrand
             ? selectedBrand.name
-            : "Sélectionner mon véhicule"}
+            : (isRTL ? "اختر سيارتي" : "Sélectionner mon véhicule")}
         </Text>
         {(selectedBrand || selectedModel) && (
           <TouchableOpacity onPress={(e) => { e.stopPropagation(); setSelectedBrand(null); setSelectedModel(null); }}>
@@ -534,7 +528,7 @@ export default function CatalogueScreen() {
             {searchResults.length === 0 ? (
               <View style={s.empty}>
                 <Ionicons name="search-outline" size={40} color={C.textDim} />
-                <Text style={s.emptyTxt}>Aucune pièce trouvée</Text>
+                <Text style={s.emptyTxt}>{isRTL ? "لم نجد قطعة" : "Aucune pièce trouvée"}</Text>
                 <Text style={s.emptySub}>Essayez avec le nom français de la pièce</Text>
               </View>
             ) : (
@@ -555,7 +549,7 @@ export default function CatalogueScreen() {
           <View style={s.pad}>
             <TouchableOpacity onPress={() => setSelectedCat(null)} style={s.backBtn}>
               <Ionicons name="arrow-back" size={16} color={C.accent} />
-              <Text style={s.backTxt}>Toutes les catégories</Text>
+              <Text style={s.backTxt}>{isRTL ? "كل الفئات" : "Toutes les catégories"}</Text>
             </TouchableOpacity>
             <View style={s.catHeader}>
               <Text style={s.catEmoji}>{displayCat.icon}</Text>
@@ -613,7 +607,7 @@ export default function CatalogueScreen() {
 
             {/* NOTE MARCHÉ */}
             <View style={s.marketNote}>
-              <Text style={s.marketNoteTitle}>💡 Conseil qualité</Text>
+              <Text style={s.marketNoteTitle}>{isRTL ? "💡 نصيحة الجودة" : "💡 Conseil qualité"}</Text>
               <Text style={s.marketNoteTxt}>
                 En Algérie, les pièces sont vendues en 3 gammes :{"\n"}
                 <Text style={{ color: "#E74C3C" }}>⭐ Origine</Text> — pièce du constructeur, la meilleure qualité{"\n"}
@@ -636,7 +630,7 @@ export default function CatalogueScreen() {
 
             {!selectedBrand ? (
               <>
-                <Text style={m.label}>Choisissez la marque</Text>
+                <Text style={m.label}>{isRTL ? "اختر الماركة" : "Choisissez la marque"}</Text>
                 <FlatList
                   data={BRANDS}
                   keyExtractor={(b) => b.id}

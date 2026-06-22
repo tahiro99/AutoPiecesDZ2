@@ -7,10 +7,23 @@ import { db } from "../config/firebase";
 
 export async function createNotif(userId, { type, title, body, data = {} }) {
   if (!userId) { console.log("[notif] no userId"); return; }
+
+  // Firestore THROWS on `undefined` field values, which makes the whole write
+  // fail silently (the callers use .catch). This is why "message" / "livraison"
+  // notifications never appeared while "commande" did. Strip undefined values
+  // and provide safe defaults so every notification is always written.
+  const cleanData = {};
+  for (const [k, v] of Object.entries(data || {})) {
+    if (v !== undefined && v !== null) cleanData[k] = v;
+  }
+
   try {
     const ref = await addDoc(collection(db, "notifications", userId, "items"), {
-      type, title, body, data,
-      read: false,
+      type:  type  || "general",
+      title: title || "Notification",
+      body:  body  || "",
+      data:  cleanData,
+      read:  false,
       createdAt: serverTimestamp(),
     });
     console.log("[notif] created:", ref.id, "for user:", userId);
