@@ -9,6 +9,11 @@ import { AuthProvider, useAuthContext } from "./src/context/AuthContext";
 import { LanguageProvider } from "./src/i18n/languagecontext";
 import { navigationRef } from "./src/navigation/navigationRef";
 import { C } from "./src/constants/theme";
+import { initAppCheck } from "./src/config/appcheck";
+
+// Initialise App Check le plus tôt possible (avant Phone Auth / Firestore).
+// Débloque le quota SMS et protège le projet contre l'abus à l'échelle nationale.
+initAppCheck();
 
 import WelcomeScreen           from "./src/screens/Welcome/WelcomeScreen";
 import LoginScreen             from "./src/screens/Auth/LoginScreen";
