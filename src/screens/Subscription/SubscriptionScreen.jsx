@@ -261,6 +261,7 @@ export default function SubscriptionScreen({ navigation }) {
                 onLongPress={() => Alert.alert(isRTL ? "تم النسخ" : "Copié", CCP_NUMBER)}>
                 <Text style={s.ccpNumber}>{CCP_NUMBER}</Text>
                 <Ionicons name="copy-outline" size={16} color={C.accent} />
+                
               </TouchableOpacity>
             </View>
           </View>
