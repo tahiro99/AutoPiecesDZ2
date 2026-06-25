@@ -18,7 +18,14 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": ["remote-notification"],
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.268280059559-tusji4fgedrtldviu507b0fdv3io5lt4"
+            ]
+          }
+        ]
       },
       "entitlements": {
         "aps-environment": "production"
