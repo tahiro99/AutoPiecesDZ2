@@ -59,7 +59,8 @@
           }
         }
       ],
-      "./plugins/withCoreLibraryDesugaring"
+      "./plugins/withCoreLibraryDesugaring",
+      "./plugins/withFirebaseAuthAPNS"
     ],
     "extra": {
       "eas": {
