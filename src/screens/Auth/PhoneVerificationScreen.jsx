@@ -54,11 +54,15 @@ export default function PhoneVerificationScreen({ route, navigation }) {
       setCode("");
       Alert.alert("SMS envoyé ✅", `Code envoyé au ${formattedPhone}`);
     } catch (e) {
-      console.log("[sendCode]", e.code, e.message);
-      let msg = e.message;
-      if (e.code === "auth/invalid-phone-number") msg = "Numéro invalide.";
-      if (e.code === "auth/too-many-requests") msg = "Trop de tentatives.";
-      Alert.alert("Erreur", msg);
+      console.log("[sendCode]", e.code, e.message, JSON.stringify(e));
+      // DEBUG : montre le détail natif EXACT pour diagnostiquer l'envoi du SMS.
+      const debugInfo =
+`Code: ${e.code || "N/A"}
+Message: ${e.message || "N/A"}
+NativeErrorMessage: ${e.nativeErrorMessage || "N/A"}
+NativeErrorCode: ${e.nativeErrorCode || "N/A"}
+UserInfo: ${JSON.stringify(e.userInfo || {})}`;
+      Alert.alert("🔍 Détail erreur ENVOI (DEBUG)", debugInfo);
     }
     setSending(false);
   };
