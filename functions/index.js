@@ -14,9 +14,11 @@ const { getMessaging } = require("firebase-admin/messaging");
 const { getAuth } = require("firebase-admin/auth");
 const crypto = require("crypto");
 
-// 🔐 Token de l'API SMS locale (LinksY / eliteSMS / ...). Stocké en secret,
-// jamais en clair dans le code. Voir instructions de déploiement plus bas.
-const SMS_API_TOKEN = defineSecret("SMS_API_TOKEN");
+// 🔐 Identifiants de l'API SMS eliteSMS (sms-algerie.com). Stockés en secrets
+// Firebase, jamais en clair dans le code. Voir instructions de déploiement plus bas.
+// Tu les trouves dans ta console eliteSMS → "Données d'accès à l'API http(s)".
+const ELITESMS_APIKEY  = defineSecret("ELITESMS_APIKEY");
+const ELITESMS_USERKEY = defineSecret("ELITESMS_USERKEY");
 
 // ⚠️ IMPORTANT: this project uses a NAMED Firestore database "tahar2"
 // (not the default one). Both the trigger and the reads must target it.
@@ -556,8 +558,8 @@ exports.notifyOnNewRating = onDocumentCreated(
 // 5/heure), max 5 tentatives de vérification.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ⚙️ À ADAPTER selon la doc de TON fournisseur (URL exacte de l'endpoint).
-const SMS_API_URL = "https://api.linksy.tech/send"; // ← remplace par l'URL réelle
+// eliteSMS : l'expéditeur (Sender ID) est configuré dans ton compte eliteSMS,
+// pas dans la requête — rien à mettre ici.
 
 function normalizePhone(raw) {
   const cleaned = String(raw || "").replace(/\s/g, "");
@@ -572,28 +574,33 @@ function hashCode(phone, code) {
     .digest("hex");
 }
 
-// 🔌 LE SEUL endroit à adapter selon ton fournisseur SMS algérien.
-// Ajuste l'URL, les headers et le body selon SA documentation.
-async function sendSmsViaProvider(phone, message, token) {
-  const res = await fetch(SMS_API_URL, {
+// Envoi via l'API SMS eliteSMS (sms-algerie.com), fonction sms_send.
+async function sendSmsViaProvider(phone, message) {
+  // eliteSMS accepte le format international SANS le "+" (ex: 213661234567).
+  const to = phone.replace(/^\+/, "");
+
+  const body = new URLSearchParams({
+    apikey:  ELITESMS_APIKEY.value(),
+    userkey: ELITESMS_USERKEY.value(),
+    message,        // URLSearchParams gère l'encodage UTF-8 / URL
+    to,
+  }).toString();
+
+  const res = await fetch("https://wsp.sms-algerie.com/api/json?function=sms_send", {
     method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      to: phone,        // ex: +213661000000
-      message: message, // ex: "AutoPièces DZ : votre code est 123456"
-    }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
   });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`SMS provider ${res.status}: ${txt}`);
+
+  // eliteSMS renvoie { "status": "success", "result": "<id>" } en cas de succès.
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.status !== "success") {
+    throw new Error(`eliteSMS: ${data.status || res.status} ${JSON.stringify(data).slice(0, 200)}`);
   }
 }
 
 exports.sendOtp = onCall(
-  { region: REGION, secrets: [SMS_API_TOKEN] },
+  { region: REGION, secrets: [ELITESMS_APIKEY, ELITESMS_USERKEY] },
   async (request) => {
     const phone = normalizePhone(request.data && request.data.phone);
     if (!/^\+213\d{9}$/.test(phone)) {
@@ -636,8 +643,7 @@ exports.sendOtp = onCall(
     try {
       await sendSmsViaProvider(
         phone,
-        `AutoPièces DZ : votre code de vérification est ${code}`,
-        SMS_API_TOKEN.value()
+        `AutoPieces DZ : votre code de verification est ${code}`
       );
     } catch (e) {
       console.error("[sendOtp] SMS error:", e.message);
