@@ -14,11 +14,10 @@ const { getMessaging } = require("firebase-admin/messaging");
 const { getAuth } = require("firebase-admin/auth");
 const crypto = require("crypto");
 
-// 🔐 Identifiants de l'API SMS eliteSMS (sms-algerie.com). Stockés en secrets
-// Firebase, jamais en clair dans le code. Voir instructions de déploiement plus bas.
-// Tu les trouves dans ta console eliteSMS → "Données d'accès à l'API http(s)".
-const ELITESMS_APIKEY  = defineSecret("ELITESMS_APIKEY");
-const ELITESMS_USERKEY = defineSecret("ELITESMS_USERKEY");
+// 🔐 Identifiants de l'API SMS Vonage (Nexmo). Stockés en secrets Firebase,
+// jamais en clair dans le code. Tu les trouves sur dashboard.nexmo.com (page d'accueil).
+const VONAGE_API_KEY    = defineSecret("VONAGE_API_KEY");
+const VONAGE_API_SECRET = defineSecret("VONAGE_API_SECRET");
 
 // ⚠️ IMPORTANT: this project uses a NAMED Firestore database "tahar2"
 // (not the default one). Both the trigger and the reads must target it.
@@ -558,8 +557,10 @@ exports.notifyOnNewRating = onDocumentCreated(
 // 5/heure), max 5 tentatives de vérification.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// eliteSMS : l'expéditeur (Sender ID) est configuré dans ton compte eliteSMS,
-// pas dans la requête — rien à mettre ici.
+// Vonage — expéditeur affiché dans le SMS (Sender ID alphanumérique, max 11
+// caractères, sans espace). Si les SMS n'arrivent pas en Algérie, demande au
+// support Vonage d'activer le Sender ID alphanumérique pour l'Algérie.
+const SMS_SENDER = "AutoPieces";
 
 function normalizePhone(raw) {
   const cleaned = String(raw || "").replace(/\s/g, "");
@@ -574,33 +575,30 @@ function hashCode(phone, code) {
     .digest("hex");
 }
 
-// Envoi via l'API SMS eliteSMS (sms-algerie.com), fonction sms_send.
+// Envoi via l'API SMS Vonage (Nexmo). Doc : https://developer.vonage.com/messaging/sms
 async function sendSmsViaProvider(phone, message) {
-  // eliteSMS accepte le format international SANS le "+" (ex: 213661234567).
-  const to = phone.replace(/^\+/, "");
-
-  const body = new URLSearchParams({
-    apikey:  ELITESMS_APIKEY.value(),
-    userkey: ELITESMS_USERKEY.value(),
-    message,        // URLSearchParams gère l'encodage UTF-8 / URL
-    to,
-  }).toString();
-
-  const res = await fetch("https://wsp.sms-algerie.com/api/json?function=sms_send", {
+  const to = phone.replace(/^\+/, ""); // Vonage : format international SANS le "+"
+  const res = await fetch("https://rest.nexmo.com/sms/json", {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key:    VONAGE_API_KEY.value(),
+      api_secret: VONAGE_API_SECRET.value(),
+      to,
+      from: SMS_SENDER,
+      text: message,
+    }),
   });
-
-  // eliteSMS renvoie { "status": "success", "result": "<id>" } en cas de succès.
+  // Vonage renvoie HTTP 200 même en cas d'erreur logique → on vérifie le status.
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.status !== "success") {
-    throw new Error(`eliteSMS: ${data.status || res.status} ${JSON.stringify(data).slice(0, 200)}`);
+  const m = (data.messages && data.messages[0]) || {};
+  if (!res.ok || m.status !== "0") {
+    throw new Error(`Vonage status=${m.status} ${m["error-text"] || ""}`);
   }
 }
 
 exports.sendOtp = onCall(
-  { region: REGION, secrets: [ELITESMS_APIKEY, ELITESMS_USERKEY] },
+  { region: REGION, secrets: [VONAGE_API_KEY, VONAGE_API_SECRET] },
   async (request) => {
     const phone = normalizePhone(request.data && request.data.phone);
     if (!/^\+213\d{9}$/.test(phone)) {
