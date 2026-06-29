@@ -5,11 +5,18 @@
 // ─────────────────────────────────────────────────────────────
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { setGlobalOptions } = require("firebase-functions/v2");
+const { defineSecret } = require("firebase-functions/params");
 const { initializeApp, getApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { getAuth } = require("firebase-admin/auth");
+const crypto = require("crypto");
+
+// 🔐 Token de l'API SMS locale (LinksY / eliteSMS / ...). Stocké en secret,
+// jamais en clair dans le code. Voir instructions de déploiement plus bas.
+const SMS_API_TOKEN = defineSecret("SMS_API_TOKEN");
 
 // ⚠️ IMPORTANT: this project uses a NAMED Firestore database "tahar2"
 // (not the default one). Both the trigger and the reads must target it.
@@ -534,5 +541,143 @@ exports.notifyOnNewRating = onDocumentCreated(
       body: (r.comment || "").trim() || "Vous avez reçu une nouvelle note.",
       data: { screen: "SellerDashboard" },
     }).catch((e) => console.error("[rating] notif error:", e.message));
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OTP par SMS via fournisseur LOCAL algérien (LinksY / eliteSMS / ...).
+// Contourne le blocage Firebase des opérateurs algériens : on génère et envoie
+// le code nous-mêmes via une passerelle SMS locale fiable.
+//
+//   sendOtp(phone)        → génère un code, le stocke haché 5 min, envoie le SMS
+//   verifyOtp(phone,code) → vérifie le code ; l'app crée ensuite le compte
+//
+// Sécurité : code jamais stocké en clair, expiration 5 min, anti-spam (1/60s,
+// 5/heure), max 5 tentatives de vérification.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ⚙️ À ADAPTER selon la doc de TON fournisseur (URL exacte de l'endpoint).
+const SMS_API_URL = "https://api.linksy.tech/send"; // ← remplace par l'URL réelle
+
+function normalizePhone(raw) {
+  const cleaned = String(raw || "").replace(/\s/g, "");
+  if (cleaned.startsWith("+213")) return cleaned;
+  return "+213" + cleaned.replace(/^0/, "");
+}
+
+function hashCode(phone, code) {
+  return crypto
+    .createHash("sha256")
+    .update(`${phone}:${code}:autopiecesdz-otp`)
+    .digest("hex");
+}
+
+// 🔌 LE SEUL endroit à adapter selon ton fournisseur SMS algérien.
+// Ajuste l'URL, les headers et le body selon SA documentation.
+async function sendSmsViaProvider(phone, message, token) {
+  const res = await fetch(SMS_API_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      to: phone,        // ex: +213661000000
+      message: message, // ex: "AutoPièces DZ : votre code est 123456"
+    }),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`SMS provider ${res.status}: ${txt}`);
+  }
+}
+
+exports.sendOtp = onCall(
+  { region: REGION, secrets: [SMS_API_TOKEN] },
+  async (request) => {
+    const phone = normalizePhone(request.data && request.data.phone);
+    if (!/^\+213\d{9}$/.test(phone)) {
+      throw new HttpsError("invalid-argument", "Numéro algérien invalide.");
+    }
+
+    const ref = db.collection("otp_codes").doc(phone);
+    const now = Date.now();
+    const snap = await ref.get();
+
+    if (snap.exists) {
+      const d = snap.data();
+      // Anti-spam : 1 SMS toutes les 60s
+      if (d.lastSentAt && now - d.lastSentAt < 60 * 1000) {
+        throw new HttpsError("resource-exhausted", "Patientez avant de redemander un code.");
+      }
+      // Max 5 SMS par heure
+      if (d.windowStart && now - d.windowStart < 3600 * 1000 && (d.sendCount || 0) >= 5) {
+        throw new HttpsError("resource-exhausted", "Trop de demandes. Réessayez plus tard.");
+      }
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const prevWindow =
+      snap.exists && snap.data().windowStart && now - snap.data().windowStart < 3600 * 1000
+        ? snap.data().windowStart
+        : now;
+    const sendCount =
+      snap.exists && prevWindow === snap.data().windowStart ? (snap.data().sendCount || 0) + 1 : 1;
+
+    await ref.set({
+      codeHash: hashCode(phone, code),
+      expiresAt: now + 5 * 60 * 1000,
+      attempts: 0,
+      lastSentAt: now,
+      windowStart: prevWindow,
+      sendCount,
+    });
+
+    try {
+      await sendSmsViaProvider(
+        phone,
+        `AutoPièces DZ : votre code de vérification est ${code}`,
+        SMS_API_TOKEN.value()
+      );
+    } catch (e) {
+      console.error("[sendOtp] SMS error:", e.message);
+      throw new HttpsError("unavailable", "Impossible d'envoyer le SMS. Réessayez.");
+    }
+
+    return { success: true };
+  }
+);
+
+exports.verifyOtp = onCall(
+  { region: REGION },
+  async (request) => {
+    const phone = normalizePhone(request.data && request.data.phone);
+    const code = String((request.data && request.data.code) || "");
+    if (!/^\d{6}$/.test(code)) {
+      throw new HttpsError("invalid-argument", "Code à 6 chiffres requis.");
+    }
+
+    const ref = db.collection("otp_codes").doc(phone);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      throw new HttpsError("not-found", "Aucun code en attente. Renvoyez le SMS.");
+    }
+
+    const d = snap.data();
+    if (Date.now() > d.expiresAt) {
+      await ref.delete();
+      throw new HttpsError("deadline-exceeded", "Code expiré. Renvoyez le SMS.");
+    }
+    if ((d.attempts || 0) >= 5) {
+      await ref.delete();
+      throw new HttpsError("resource-exhausted", "Trop de tentatives. Renvoyez le SMS.");
+    }
+    if (hashCode(phone, code) !== d.codeHash) {
+      await ref.update({ attempts: (d.attempts || 0) + 1 });
+      throw new HttpsError("permission-denied", "Code incorrect.");
+    }
+
+    await ref.delete(); // code à usage unique
+    return { success: true, phone };
   }
 );

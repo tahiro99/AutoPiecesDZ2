@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { initializeAuth, getReactNativePersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getFunctions } from "firebase/functions";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const firebaseConfig = {
@@ -24,3 +25,5 @@ const auth = initializeAuth(app, {
 export { auth };
 export const db      = getFirestore(app, "tahar2");
 export const storage = getStorage(app);
+// Cloud Functions dans la même région que la base "tahar2" (europe-west3).
+export const functions = getFunctions(app, "europe-west3");

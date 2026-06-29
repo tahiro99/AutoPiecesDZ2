@@ -6,11 +6,10 @@ import {
   KeyboardAvoidingView, Platform, ScrollView
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import firebaseAuth from "@react-native-firebase/auth";
-import firebaseMessaging from "@react-native-firebase/messaging";
+import { httpsCallable } from "firebase/functions";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "../../config/firebase";
+import { auth, db, functions } from "../../config/firebase";
 import { C } from "../../constants/theme";
 import { useLanguage } from "../../i18n/languagecontext";
 import { initVendorSubscription } from "../../services/subscription.service";
@@ -36,33 +35,19 @@ export default function PhoneVerificationScreen({ route, navigation }) {
   // which means "Forgot password" works (Firebase sends the reset to this email).
   const firebaseEmail  = (email || "").trim().toLowerCase();
 
-  useEffect(() => {
-    if (Platform.OS === "ios") {
-      firebaseMessaging()
-        .registerDeviceForRemoteMessages()
-        .catch((e) => console.log("[messaging]", e.message));
-    }
-  }, []);
-
   const sendCode = async () => {
     if (sending) return;
     setSending(true);
     try {
-      const confirmation = await firebaseAuth().signInWithPhoneNumber(formattedPhone);
-      setConfirm(confirmation);
+      // Envoie l'OTP via notre Cloud Function (passerelle SMS locale algérienne).
+      const sendOtp = httpsCallable(functions, "sendOtp");
+      await sendOtp({ phone: formattedPhone });
       setCodeSent(true);
       setCode("");
       Alert.alert("SMS envoyé ✅", `Code envoyé au ${formattedPhone}`);
     } catch (e) {
-      console.log("[sendCode]", e.code, e.message, JSON.stringify(e));
-      // DEBUG : montre le détail natif EXACT pour diagnostiquer l'envoi du SMS.
-      const debugInfo =
-`Code: ${e.code || "N/A"}
-Message: ${e.message || "N/A"}
-NativeErrorMessage: ${e.nativeErrorMessage || "N/A"}
-NativeErrorCode: ${e.nativeErrorCode || "N/A"}
-UserInfo: ${JSON.stringify(e.userInfo || {})}`;
-      Alert.alert("🔍 Détail erreur ENVOI (DEBUG)", debugInfo);
+      console.log("[sendOtp]", e.code, e.message);
+      Alert.alert("Erreur", e.message || "Impossible d'envoyer le SMS. Réessayez.");
     }
     setSending(false);
   };
@@ -70,13 +55,15 @@ UserInfo: ${JSON.stringify(e.userInfo || {})}`;
   const verifyCode = async () => {
     if (isVerifyingRef.current) return;
     if (!code || code.length < 6) { Alert.alert("Erreur", "Entrez le code à 6 chiffres"); return; }
-    if (!confirm) { Alert.alert("Erreur", "Renvoyez le SMS d'abord"); return; }
+    if (!codeSent) { Alert.alert("Erreur", "Renvoyez le SMS d'abord"); return; }
 
     isVerifyingRef.current = true;
     setVerifying(true);
 
     try {
-      await confirm.confirm(code);
+      // Vérifie le code via notre Cloud Function.
+      const verifyOtp = httpsCallable(functions, "verifyOtp");
+      await verifyOtp({ phone: formattedPhone, code });
 
       try {
         const userCred = await createUserWithEmailAndPassword(auth, firebaseEmail, password);
@@ -99,14 +86,12 @@ UserInfo: ${JSON.stringify(e.userInfo || {})}`;
       navigation.reset({ index: 0, routes: [{ name: "Main" }] });
 
     } catch (e) {
-      console.log("[verifyCode]", e.code, e.message);
-      let msg = e.message;
-      if (e.code === "auth/invalid-verification-code") msg = "Code incorrect. Réessayez.";
-      if (e.code === "auth/code-expired") {
-        msg = "Code expiré. Renvoyez le SMS.";
+      console.log("[verifyOtp]", e.code, e.message);
+      // Codes renvoyés par la Cloud Function (functions/deadline-exceeded = expiré)
+      if (e.code === "functions/deadline-exceeded" || e.code === "functions/not-found") {
         setCodeSent(false); setConfirm(null); setCode("");
       }
-      Alert.alert("Erreur", msg);
+      Alert.alert("Erreur", e.message || "Code incorrect. Réessayez.");
     } finally {
       setVerifying(false);
       isVerifyingRef.current = false;
