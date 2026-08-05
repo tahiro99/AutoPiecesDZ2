@@ -6,7 +6,6 @@ import { useAuthContext } from "../../context/AuthContext";
 import { useCollection } from "../../hooks/useCollection";
 import { doc, updateDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../../config/firebase";
-import { createNotif } from "../../services/Notif.service";
 import ScreenHeader from "../../components/ScreenHeader";
 import Tag from "../../components/Tag";
 import Spinner from "../../components/Spinner";
@@ -59,12 +58,6 @@ function RatingModal({ visible, order, userId, onClose, isRTL, t }) {
       });
       await updateDoc(doc(db, "orders", order.id), { rated: true });
       // Notifier le vendeur de la nouvelle évaluation
-      createNotif(order.sellerId, {
-        type: "rating",
-        title: `⭐ Nouvelle évaluation : ${stars}/5`,
-        body: comment.trim() || "Vous avez reçu une nouvelle note.",
-        data: { screen: "SellerDashboard" },
-      }).catch(() => {});
       Alert.alert(
         isRTL ? "شكراً!" : "Merci !",
         isRTL ? "تم إرسال تقييمك." : "Votre avis a été envoyé.",
@@ -122,13 +115,15 @@ function RatingModal({ visible, order, userId, onClose, isRTL, t }) {
 // ── Main Screen ───────────────────────────────────────────────────
 export default function OrdersScreen({ navigation }) {
   const { t, isRTL } = useLanguage();
-  const { data: orders, loading } = useCollection("orders");
   const { user } = useAuthContext();
   const USER_ID = user?.uid || "";
-  const myOrders = (orders || []).filter((o) => o.buyerId === USER_ID);
   const [ratingOrder, setRatingOrder] = useState(null);
   const [reportTarget, setReportTarget] = useState(null); // ← AJOUT { userId, userName }
-
+const { data: myOrders, loading } = useCollection("orders", {
+    filters: USER_ID ? [["buyerId", "==", USER_ID]] : [],
+    max: 100,
+    enabled: !!USER_ID,
+  });
   const statusLabel = (status) => {
     const map = { pending: t("pending"), confirmed: t("confirmed"), shipped: t("shipping"), delivered: t("delivered"), cancelled: t("archived") };
     return map[status] || status;
@@ -136,12 +131,11 @@ export default function OrdersScreen({ navigation }) {
 
   return (
     <View style={s.container}>
-      <ScreenHeader title={`${t("myOrdersTitle")} (${myOrders.length})`} onBack={() => navigation.goBack()} />
-
+<ScreenHeader title={`${t("myOrdersTitle")} (${(myOrders || []).length})`} onBack={() => navigation.goBack()} />
       {loading ? <Spinner /> : (
         <FlatList
-          data={myOrders}
-          keyExtractor={(item) => item.id}
+data={myOrders || []}         
+ keyExtractor={(item) => item.id}
           contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {

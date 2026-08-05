@@ -198,7 +198,7 @@ export default function ProfilScreen({ navigation }) {
         <Text style={s.noAuthTitle}>{isRTL ? "غير متصل" : "Non connecté"}</Text>
         <Text style={[s.noAuthSub, { textAlign: "center" }]}>{t("loginToProfile")}</Text>
         <Btn onPress={() => navigation.navigate("Login")} style={{ marginTop: 20, width: 220 }}>{t("login")}</Btn>
-        <Btn variant="ghost" onPress={() => navigation.navigate("Register")} style={{ marginTop: 10, width: 220 }}>{t("register")}</Btn>
+        <Btn variant="ghost" onPress={() => navigation.navigate("Welcome")} style={{ marginTop: 10, width: 220 }}>{t("backToWelcome")}</Btn>
       </View>
     );
   }

@@ -11,20 +11,30 @@
       "resizeMode": "contain",
       "backgroundColor": "#08090B"
     },
-    "scheme": "autopieces",
+    "scheme": [
+  "autopiecesdz",
+  "com.autopieces.dz",
+  "com.googleusercontent.apps.268280059559-u4nm6vn3aj7klsialnpo49es9g1s9383"
+],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.autopieces.dz",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["remote-notification"],
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
               "com.googleusercontent.apps.268280059559-tusji4fgedrtldviu507b0fdv3io5lt4"
             ]
           }
+        ],
+        "LSApplicationQueriesSchemes": [
+          "fbapi",
+          "fb-messenger-share-api"
         ]
       },
       "entitlements": {
@@ -55,12 +65,29 @@
           },
           "ios": {
             "useFrameworks": "static",
-            "forceStaticLinking": ["RNFBApp", "RNFBAuth", "RNFBMessaging"]
+            "forceStaticLinking": [
+              "RNFBApp",
+              "RNFBAuth",
+              "RNFBMessaging"
+            ]
           }
         }
       ],
       "./plugins/withCoreLibraryDesugaring",
-      "./plugins/withFirebaseAuthAPNS"
+      "./plugins/withFirebaseAuthAPNS",
+      "expo-web-browser",
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "1500560438057848",
+          "clientToken": "717db1be7b2e41277a8e0dfa2e772020",
+          "displayName": "AutoPieces DZ",
+          "scheme": "fb1500560438057848",
+          "advertiserIDCollectionEnabled": false,
+          "autoLogAppEventsEnabled": false,
+          "isAutoInitEnabled": true
+        }
+      ]
     ],
     "extra": {
       "eas": {

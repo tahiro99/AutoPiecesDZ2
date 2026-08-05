@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "268280059559-fnnlqu0sehvmr5ticggjqvdj041jq284.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.autopieces.dz",
+            "certificate_hash": "666de669b917b1de74a4eb6d849a6f6919fc541a"
+          }
+        },
+        {
           "client_id": "268280059559-g0q696cd910nrl2u1arodndcj8fq0slq.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -35,6 +43,14 @@
           "android_info": {
             "package_name": "com.autopieces.dz",
             "certificate_hash": "db20e8913fdba482e959b093ce1e3ba94d7ce663"
+          }
+        },
+        {
+          "client_id": "268280059559-u4nm6vn3aj7klsialnpo49es9g1s9383.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.autopieces.dz",
+            "certificate_hash": "fbe6a8d98b72c0216b8319b5248905948578871d"
           }
         },
         {

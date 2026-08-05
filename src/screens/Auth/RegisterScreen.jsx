@@ -9,6 +9,9 @@ import Input from "../../components/Input";
 import Btn from "../../components/Btn";
 import { useLanguage } from "../../i18n/languagecontext";
 import { WILAYAS } from "../../constants/wilayas";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "../../config/firebase";
 
 export default function RegisterScreen({ navigation }) {
   const { t, isRTL } = useLanguage();
@@ -29,26 +32,41 @@ export default function RegisterScreen({ navigation }) {
 
   const align = isRTL ? "right" : "left";
 
-  const handleRegister = () => {
-    if (!name.trim())         { setError(isRTL ? "الاسم مطلوب" : "Le nom est obligatoire"); return; }
-    if (!phone.trim())        { setError(isRTL ? "رقم الهاتف مطلوب" : "Le téléphone est obligatoire"); return; }
-    if (!email.trim())        { setError(isRTL ? "البريد الإلكتروني مطلوب" : "L'email est obligatoire"); return; }
-    if (!email.includes("@")) { setError(isRTL ? "بريد إلكتروني غير صالح" : "Email invalide"); return; }
-    if (!wilaya)              { setError(isRTL ? "اختر ولايتك" : "Sélectionnez votre wilaya"); return; }
-    if (password.length < 6)  { setError(isRTL ? "كلمة المرور 6 أحرف على الأقل" : "Mot de passe minimum 6 caractères"); return; }
-    if (password !== confirm)  { setError(isRTL ? "كلمتا المرور غير متطابقتين" : "Les mots de passe ne correspondent pas"); return; }
+ const handleRegister = async () => {
+  if (!name.trim())         { setError(isRTL ? "الاسم مطلوب" : "Le nom est obligatoire"); return; }
+  if (!phone.trim())        { setError(isRTL ? "رقم الهاتف مطلوب" : "Le téléphone est obligatoire"); return; }
+  if (!email.trim())        { setError(isRTL ? "البريد الإلكتروني مطلوب" : "L'email est obligatoire"); return; }
+  if (!email.includes("@")) { setError(isRTL ? "بريد إلكتروني غير صالح" : "Email invalide"); return; }
+  if (!wilaya)              { setError(isRTL ? "اختر ولايتك" : "Sélectionnez votre wilaya"); return; }
+  if (password.length < 6)  { setError(isRTL ? "كلمة المرور 6 أحرف على الأقل" : "Mot de passe minimum 6 caractères"); return; }
+  if (password !== confirm) { setError(isRTL ? "كلمتا المرور غير متطابقتين" : "Les mots de passe ne correspondent pas"); return; }
 
-    setError("");
-    navigation.navigate("PhoneVerification", {
+  setError("");
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+    const uid = cred.user.uid;
+    await setDoc(doc(db, "users", uid), {
+      uid,
+      displayName: name.trim(),
       phone: phone.trim(),
-      name: name.trim(),
       email: email.trim().toLowerCase(),
+      firebaseEmail: email.trim().toLowerCase(),
       wilaya,
-      password,
       role,
-      fromRegister: true,
+      verified: false,
+      createdAt: serverTimestamp(),
     });
-  };
+    if (role === "vendeur") {
+      const { initVendorSubscription } = await import("../../services/subscription.service");
+      await initVendorSubscription(uid);
+    }
+    navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+  } catch (e) {
+    setError(e.code === "auth/email-already-in-use" 
+      ? (isRTL ? "هذا البريد مستخدم بالفعل" : "Cet email est déjà utilisé")
+      : e.message);
+  }
+};
 
   const roles = [
     { v: "client",  label: isRTL ? "مشتري" : "Client",  icon: "person-outline",     desc: isRTL ? "بحث وشراء قطع الغيار" : "Rechercher & acheter des pièces" },

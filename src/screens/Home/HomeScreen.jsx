@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "../../constants/theme";
@@ -11,7 +11,8 @@ import { navigate as globalNavigate } from "../../navigation/navigationRef";
 import Spinner from "../../components/Spinner";
 import Tag from "../../components/Tag";
 import { useLanguage } from "../../i18n/languagecontext";
-
+import { collection, getCountFromServer, query, where } from "firebase/firestore";
+import { db } from "../../config/firebase";
 function ListingCard({ listing, onPress, onFav, isFav, isRTL }) {
   const hasPhoto = listing.img?.startsWith("http");
   return (
@@ -51,6 +52,25 @@ export default function HomeScreen({ navigation }) {
   const { data: listings, loading } = useCollection("listings");
   const { data: favDocs }           = useCollection("favorites");
   const [cat, setCat]               = useState(null);
+  const [realStats, setRealStats] = useState({ listings: 0, vendeurs: 0 });
+
+useEffect(() => {
+  const loadStats = async () => {
+    try {
+      const listingsSnap = await getCountFromServer(collection(db, "listings"));
+      const vendeursSnap = await getCountFromServer(
+        query(collection(db, "users"), where("role", "==", "vendeur"))
+      );
+      setRealStats({
+        listings: listingsSnap.data().count,
+        vendeurs: vendeursSnap.data().count,
+      });
+    } catch (e) {
+      // Silent fail
+    }
+  };
+  loadStats();
+}, []);
 
   const userId = user?.uid || null;
   const favIds = userId ? (favDocs || []).filter((f) => f.userId === userId).map((f) => f.listingId) : [];
@@ -94,12 +114,12 @@ export default function HomeScreen({ navigation }) {
           </Text>
           <Text style={[s.heroSub, { textAlign: align }]}>{t("fastDelivery")}</Text>
           <View style={[s.statsRow, { flexDirection: row }]}>
-            {[
-              [(listings || []).length, isRTL ? "إعلان" : "ANNONCES"],
-              ["3K+", isRTL ? "بائع" : "VENDEURS"],
-              ["58",  isRTL ? "ولاية" : "WILAYAS"],
-              ["4.8", isRTL ? "التقييم" : "NOTE MOY."],
-            ].map(([n, l]) => (
+       {[
+  [realStats.listings.toLocaleString(), isRTL ? "إعلان" : "ANNONCES"],
+  [realStats.vendeurs.toLocaleString(), isRTL ? "بائع" : "VENDEURS"],
+  ["58",  isRTL ? "ولاية" : "WILAYAS"],
+  ["4.8", isRTL ? "التقييم" : "NOTE MOY."],
+].map(([n, l]) => (
               <View key={l} style={s.statCard}>
                 <Text style={s.statN}>{n}</Text>
                 <Text style={s.statL}>{l}</Text>

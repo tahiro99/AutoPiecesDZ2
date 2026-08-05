@@ -19,6 +19,8 @@ import SubscriptionBanner from "../../components/SubscriptionBanner";
 import { useSubscription } from "../../hooks/useSubscription";
 import { CATEGORIES } from "../../constants/categories";
 import { WILAYAS } from "../../constants/wilayas";
+import { useEffect } from "react";
+import { collection, getCountFromServer, query, where } from "firebase/firestore";
 
 const WILAYAS_LIST = WILAYAS || ["Alger","Oran","Constantine","Blida","Sétif","Annaba","Tlemcen","Batna"];
 

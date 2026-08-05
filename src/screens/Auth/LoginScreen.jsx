@@ -9,34 +9,22 @@ import { login, getErrorMessage } from "../../services/auth.service";
 import { useLanguage } from "../../i18n/languagecontext";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../../config/firebase";
+import { loginWithFacebook } from "../../services/facebook.service";
 
-// Accepte tout numéro algérien à 10 chiffres commençant par 0
-// (mobile 05/06/07 + futurs préfixes éventuels).
 const isPhone = (val) => /^0\d{9}$/.test(val.replace(/\s/g, ""));
-
 const FAKE_DOMAIN = "@autopiecesdz.com";
 
-// Returns ALL possible emails for an identifier, ordered by likelihood.
-// We'll try each one until login() succeeds.
 async function getEmailCandidates(identifier) {
   const raw = identifier.trim();
   const cleaned = raw.replace(/\s/g, "");
-
-  // Direct email input → just use it.
   if (!isPhone(cleaned)) return [cleaned.toLowerCase()];
-
-  // Phone input: search Firestore for any user doc matching the phone in
-  // various formats, then collect every email/firebaseEmail value we find.
   const withSpaces = cleaned.replace(/(\d{4})(\d{3})(\d{3})/, "$1 $2 $3");
-  const intl       = "+213" + cleaned.replace(/^0/, "");
+  const intl = "+213" + cleaned.replace(/^0/, "");
   const phoneForms = Array.from(new Set([cleaned, raw, withSpaces, intl]));
-
   const collected = new Set();
   for (const candidate of phoneForms) {
     try {
-      const snap = await getDocs(
-        query(collection(db, "users"), where("phone", "==", candidate))
-      );
+      const snap = await getDocs(query(collection(db, "users"), where("phone", "==", candidate)));
       snap.docs.forEach((d) => {
         const data = d.data() || {};
         const e1 = (data.email || "").trim().toLowerCase();
@@ -46,12 +34,9 @@ async function getEmailCandidates(identifier) {
       });
     } catch (_) {}
   }
-
-  // Order: real emails first (password resets land here), then legacy fake,
-  // then the legacy pattern as last-resort fallback.
   const arr = Array.from(collected);
-  const real   = arr.filter((e) => !e.endsWith(FAKE_DOMAIN));
-  const fake   = arr.filter((e) =>  e.endsWith(FAKE_DOMAIN));
+  const real = arr.filter((e) => !e.endsWith(FAKE_DOMAIN));
+  const fake = arr.filter((e) => e.endsWith(FAKE_DOMAIN));
   const legacy = `${cleaned}${FAKE_DOMAIN}`;
   return Array.from(new Set([...real, ...fake, legacy]));
 }
@@ -59,10 +44,25 @@ async function getEmailCandidates(identifier) {
 export default function LoginScreen({ navigation }) {
   const { t, isRTL } = useLanguage();
   const [identifier, setIdentifier] = useState("");
-  const [password, setPassword]     = useState("");
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const align = isRTL ? "right" : "left";
+
+  const handleFacebookLogin = async () => {
+    setError(""); setLoading(true);
+    try {
+      const { isNewUser } = await loginWithFacebook();
+      if (isNewUser) {
+        navigation.reset({ index: 0, routes: [{ name: "ChooseRole" }] });
+      } else {
+        navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+      }
+    } catch (e) {
+      setError(e.message || "Erreur Facebook");
+    }
+    setLoading(false);
+  };
 
   const handleLogin = async () => {
     if (!identifier.trim()) { setError(isRTL ? "أدخل رقم هاتفك أو بريدك الإلكتروني" : "Entrez votre téléphone ou email"); return; }
@@ -79,10 +79,8 @@ export default function LoginScreen({ navigation }) {
           return;
         } catch (e) {
           lastError = e;
-          // Try next candidate
         }
       }
-      // None of the candidates worked
       throw lastError || new Error("auth/invalid-credential");
     } catch (e) {
       setError(getErrorMessage(e));
@@ -132,15 +130,16 @@ export default function LoginScreen({ navigation }) {
           <Text style={s.forgotTxt}>{t("forgotPassword")}</Text>
         </TouchableOpacity>
       </View>
-      <Btn onPress={handleLogin} loading={loading}>{t("login")}</Btn>
-      <View style={s.divider}>
-        <View style={s.divLine} /><Text style={s.divTxt}>{isRTL ? "أو" : "OU"}</Text><View style={s.divLine} />
-      </View>
-      <TouchableOpacity onPress={() => navigation.navigate("Register")} style={s.regBtn}>
-        <Text style={[s.regTxt, { textAlign: "center" }]}>
-          {t("noAccount")}{" "}<Text style={{ color: C.accent, fontWeight: "800" }}>{t("register")}</Text>
-        </Text>
-      </TouchableOpacity>
+
+      {/* Bouton Se connecter */}
+      <Btn onPress={handleLogin} loading={loading}>
+        {t("login")}
+      </Btn>
+
+
+
+
+  
     </ScrollView>
   );
 }
@@ -164,6 +163,6 @@ const s = StyleSheet.create({
   divider:       { flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 20 },
   divLine:       { flex: 1, height: 1, backgroundColor: C.border },
   divTxt:        { fontSize: 11, color: C.textDim, fontWeight: "700" },
-  regBtn:        { alignItems: "center", paddingVertical: 8 },
-  regTxt:        { fontSize: 14, color: C.textMuted },
+  fbBtn:         { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#1877F2", borderRadius: 14, paddingVertical: 14 },
+  fbTxt:         { fontSize: 15, fontWeight: "800", color: "#fff" },
 });

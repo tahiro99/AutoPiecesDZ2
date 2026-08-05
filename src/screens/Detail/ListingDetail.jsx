@@ -43,7 +43,7 @@ export default function ListingDetail({ route, navigation }) {
         title: listing.title,
         message: isRTL
           ? `🔧 ${listing.title}\n💰 ${(listing.price || 0).toLocaleString()} DA\n📍 ${listing.wilaya || "Algérie"}\n\nتجدها على AutoPièces DZ 🇩🇿`
-          : `🔧 ${listing.title}\n💰 ${(listing.price || 0).toLocaleString()} DA\n📍 ${listing.wilaya || "Algérie"}\n\nTrouvez-la sur AutoPièces DZ 🇩🇿\nhttps://autopiecesdz-web.vercel.app`,
+          : `🔧 ${listing.title}\n💰 ${(listing.price || 0).toLocaleString()} DA\n📍 ${listing.wilaya || "Algérie"}\n\nTrouvez-la sur AutoPièces DZ 🇩🇿\nhttps://autopiecesdz.com`,
       });
     } catch (e) {}
   };

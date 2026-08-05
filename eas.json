@@ -19,7 +19,9 @@
     "production": {
       "autoIncrement": true,
       "channel": "production",
-      "distribution": "internal"
+      "android": {
+        "buildType": "app-bundle"
+      }
     }
   },
   "submit": {

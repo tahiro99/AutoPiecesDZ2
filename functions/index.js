@@ -12,13 +12,9 @@ const { initializeApp, getApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { getAuth } = require("firebase-admin/auth");
-const crypto = require("crypto");
 
-// 🔐 Identifiants de l'API SMS Vonage (Nexmo). Stockés en secrets Firebase,
-// jamais en clair dans le code. Tu les trouves sur dashboard.nexmo.com (page d'accueil).
-const VONAGE_API_KEY    = defineSecret("VONAGE_API_KEY");
-const VONAGE_API_SECRET = defineSecret("VONAGE_API_SECRET");
 
+// 🔐 Identifiants de l'API SMS Vonage (Nexmo). Stockés en secrets Firebase
 // ⚠️ IMPORTANT: this project uses a NAMED Firestore database "tahar2"
 // (not the default one). Both the trigger and the reads must target it.
 const DATABASE_ID = "tahar2";
@@ -88,7 +84,7 @@ exports.sendNotificationPush = onDocumentCreated(
     // (le doc reste dans Firestore, le user le verra dans son onglet notif).
     // Évite la vibration spammeuse quand 5 messages arrivent en rafale.
     // Exception : notifications "abonnement" et "report" toujours envoyées.
-    if (!["abonnement", "report", "subscription_warning"].includes(notif.type)) {
+    if (!["abonnement", "report", "subscription_warning", "message", "commande"].includes(notif.type)) { 
       const ok = await shouldSendPush(userId);
       if (!ok) {
         console.log("[push] batched (skip) for", userId, "type:", notif.type);
@@ -545,143 +541,3 @@ exports.notifyOnNewRating = onDocumentCreated(
   }
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// OTP par SMS via fournisseur LOCAL algérien (LinksY / eliteSMS / ...).
-// Contourne le blocage Firebase des opérateurs algériens : on génère et envoie
-// le code nous-mêmes via une passerelle SMS locale fiable.
-//
-//   sendOtp(phone)        → génère un code, le stocke haché 5 min, envoie le SMS
-//   verifyOtp(phone,code) → vérifie le code ; l'app crée ensuite le compte
-//
-// Sécurité : code jamais stocké en clair, expiration 5 min, anti-spam (1/60s,
-// 5/heure), max 5 tentatives de vérification.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Vonage — expéditeur affiché dans le SMS (Sender ID alphanumérique, max 11
-// caractères, sans espace). Si les SMS n'arrivent pas en Algérie, demande au
-// support Vonage d'activer le Sender ID alphanumérique pour l'Algérie.
-const SMS_SENDER = "AutoPieces";
-
-function normalizePhone(raw) {
-  const cleaned = String(raw || "").replace(/\s/g, "");
-  if (cleaned.startsWith("+213")) return cleaned;
-  return "+213" + cleaned.replace(/^0/, "");
-}
-
-function hashCode(phone, code) {
-  return crypto
-    .createHash("sha256")
-    .update(`${phone}:${code}:autopiecesdz-otp`)
-    .digest("hex");
-}
-
-// Envoi via l'API SMS Vonage (Nexmo). Doc : https://developer.vonage.com/messaging/sms
-async function sendSmsViaProvider(phone, message) {
-  const to = phone.replace(/^\+/, ""); // Vonage : format international SANS le "+"
-  const res = await fetch("https://rest.nexmo.com/sms/json", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      api_key:    VONAGE_API_KEY.value(),
-      api_secret: VONAGE_API_SECRET.value(),
-      to,
-      from: SMS_SENDER,
-      text: message,
-    }),
-  });
-  // Vonage renvoie HTTP 200 même en cas d'erreur logique → on vérifie le status.
-  const data = await res.json().catch(() => ({}));
-  const m = (data.messages && data.messages[0]) || {};
-  if (!res.ok || m.status !== "0") {
-    throw new Error(`Vonage status=${m.status} ${m["error-text"] || ""}`);
-  }
-}
-
-exports.sendOtp = onCall(
-  { region: REGION, secrets: [VONAGE_API_KEY, VONAGE_API_SECRET] },
-  async (request) => {
-    const phone = normalizePhone(request.data && request.data.phone);
-    if (!/^\+213\d{9}$/.test(phone)) {
-      throw new HttpsError("invalid-argument", "Numéro algérien invalide.");
-    }
-
-    const ref = db.collection("otp_codes").doc(phone);
-    const now = Date.now();
-    const snap = await ref.get();
-
-    if (snap.exists) {
-      const d = snap.data();
-      // Anti-spam : 1 SMS toutes les 60s
-      if (d.lastSentAt && now - d.lastSentAt < 60 * 1000) {
-        throw new HttpsError("resource-exhausted", "Patientez avant de redemander un code.");
-      }
-      // Max 5 SMS par heure
-      if (d.windowStart && now - d.windowStart < 3600 * 1000 && (d.sendCount || 0) >= 5) {
-        throw new HttpsError("resource-exhausted", "Trop de demandes. Réessayez plus tard.");
-      }
-    }
-
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    const prevWindow =
-      snap.exists && snap.data().windowStart && now - snap.data().windowStart < 3600 * 1000
-        ? snap.data().windowStart
-        : now;
-    const sendCount =
-      snap.exists && prevWindow === snap.data().windowStart ? (snap.data().sendCount || 0) + 1 : 1;
-
-    await ref.set({
-      codeHash: hashCode(phone, code),
-      expiresAt: now + 5 * 60 * 1000,
-      attempts: 0,
-      lastSentAt: now,
-      windowStart: prevWindow,
-      sendCount,
-    });
-
-    try {
-      await sendSmsViaProvider(
-        phone,
-        `AutoPieces DZ : votre code de verification est ${code}`
-      );
-    } catch (e) {
-      console.error("[sendOtp] SMS error:", e.message);
-      throw new HttpsError("unavailable", "Impossible d'envoyer le SMS. Réessayez.");
-    }
-
-    return { success: true };
-  }
-);
-
-exports.verifyOtp = onCall(
-  { region: REGION },
-  async (request) => {
-    const phone = normalizePhone(request.data && request.data.phone);
-    const code = String((request.data && request.data.code) || "");
-    if (!/^\d{6}$/.test(code)) {
-      throw new HttpsError("invalid-argument", "Code à 6 chiffres requis.");
-    }
-
-    const ref = db.collection("otp_codes").doc(phone);
-    const snap = await ref.get();
-    if (!snap.exists) {
-      throw new HttpsError("not-found", "Aucun code en attente. Renvoyez le SMS.");
-    }
-
-    const d = snap.data();
-    if (Date.now() > d.expiresAt) {
-      await ref.delete();
-      throw new HttpsError("deadline-exceeded", "Code expiré. Renvoyez le SMS.");
-    }
-    if ((d.attempts || 0) >= 5) {
-      await ref.delete();
-      throw new HttpsError("resource-exhausted", "Trop de tentatives. Renvoyez le SMS.");
-    }
-    if (hashCode(phone, code) !== d.codeHash) {
-      await ref.update({ attempts: (d.attempts || 0) + 1 });
-      throw new HttpsError("permission-denied", "Code incorrect.");
-    }
-
-    await ref.delete(); // code à usage unique
-    return { success: true, phone };
-  }
-);

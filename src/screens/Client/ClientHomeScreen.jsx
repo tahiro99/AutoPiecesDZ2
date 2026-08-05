@@ -17,6 +17,8 @@ import { WILAYAS } from "../../constants/wilayas";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { listingMatchesQuery } from "../../constants/partsAliases";
 import { CAR_BRANDS, CAR_MODELS } from "../../constants/carBrands";
+import { collection, getCountFromServer, query, where } from "firebase/firestore";
+import { db } from "../../config/firebase";
 const RADIUS_KM = 30;
 
 // Marques + modèles importés depuis src/constants/carBrands.js (en haut)
@@ -84,6 +86,23 @@ export default function ClientHomeScreen({ navigation }) {
   const [locLoading, setLocLoading] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [nearbyMode, setNearbyMode] = useState(false);
+  const [realStats, setRealStats] = useState({ listings: 0, vendeurs: 0 });
+
+useEffect(() => {
+  const loadStats = async () => {
+    try {
+      const listingsSnap = await getCountFromServer(collection(db, "listings"));
+      const vendeursSnap = await getCountFromServer(
+        query(collection(db, "users"), where("role", "==", "vendeur"))
+      );
+      setRealStats({
+        listings: listingsSnap.data().count,
+        vendeurs: vendeursSnap.data().count,
+      });
+    } catch (e) {}
+  };
+  loadStats();
+}, []);
 
   // ── Filtres avancés ──
   const [filterCondition, setFilterCondition] = useState(null);
@@ -231,14 +250,13 @@ export default function ClientHomeScreen({ navigation }) {
           <View style={cs.banner}>
             <View style={cs.bannerLeft}>
               <View style={cs.liveRow}><View style={cs.liveDot} /><Text style={cs.liveTxt}>MARKETPLACE ALGÉRIE</Text></View>
-              <Text style={cs.bannerTitle}>{all.length}+ annonces{"\n"}<Text style={{ color: C.accent }}>disponibles</Text></Text>
-              <TouchableOpacity style={cs.bannerBtn} onPress={() => navigation.navigate("Catalogue")}>
+<Text style={cs.bannerTitle}>{realStats.listings.toLocaleString()}+ annonces{"\n"}<Text style={{ color: C.accent }}>disponibles</Text></Text>              <TouchableOpacity style={cs.bannerBtn} onPress={() => navigation.navigate("Catalogue")}>
                 <Text style={cs.bannerBtnTxt}>Explorer tout</Text>
                 <Ionicons name="arrow-forward" size={13} color="#000" />
               </TouchableOpacity>
             </View>
             <View style={cs.bannerRight}>
-              {[["58", "Wilayas"], ["3K+", "Vendeurs"], ["4.8★", "Note"]].map(([n, l]) => (
+  {[["58", "Wilayas"], [realStats.vendeurs.toLocaleString(), "Vendeurs"], ["4.8★", "Note"]].map(([n, l]) => (
                 <View key={l} style={cs.bStat}><Text style={cs.bStatN}>{n}</Text><Text style={cs.bStatL}>{l}</Text></View>
               ))}
             </View>
@@ -570,6 +588,23 @@ function FilterModal({
                   </TouchableOpacity>
                 </>
               )}
+              {/* ANNÉE */}
+              <Text style={fm.label}>{isRTL ? "سنة الصنع" : "Année du véhicule"}</Text>
+              <View style={{ flexDirection: "row", gap: 10, marginBottom: 20, alignItems: "center" }}>
+                <TextInput
+                  style={[fm.priceInput, { textAlign: isRTL ? "right" : "left" }]}
+                  placeholder={isRTL ? "من" : "De"} placeholderTextColor={C.textDim}
+                  keyboardType="number-pad" maxLength={4}
+                  value={filterYearFrom} onChangeText={setFilterYearFrom} />
+                <Text style={{ color: C.textDim }}>–</Text>
+                <TextInput
+                  style={[fm.priceInput, { textAlign: isRTL ? "right" : "left" }]}
+                  placeholder={isRTL ? "إلى" : "À"} placeholderTextColor={C.textDim}
+                  keyboardType="number-pad" maxLength={4}
+                  value={filterYearTo} onChangeText={setFilterYearTo} />
+              </View>
+
+
 
               {/* WILAYA */}
               <Text style={fm.label}>{isRTL ? "الولاية" : "Wilaya"}</Text>
@@ -620,22 +655,6 @@ function FilterModal({
                   ))}
                 </View>
               </ScrollView>
-
-              {/* ANNÉE */}
-              <Text style={fm.label}>{isRTL ? "سنة الصنع" : "Année du véhicule"}</Text>
-              <View style={{ flexDirection: "row", gap: 10, marginBottom: 20, alignItems: "center" }}>
-                <TextInput
-                  style={[fm.priceInput, { textAlign: isRTL ? "right" : "left" }]}
-                  placeholder={isRTL ? "من" : "De"} placeholderTextColor={C.textDim}
-                  keyboardType="number-pad" maxLength={4}
-                  value={filterYearFrom} onChangeText={setFilterYearFrom} />
-                <Text style={{ color: C.textDim }}>–</Text>
-                <TextInput
-                  style={[fm.priceInput, { textAlign: isRTL ? "right" : "left" }]}
-                  placeholder={isRTL ? "إلى" : "À"} placeholderTextColor={C.textDim}
-                  keyboardType="number-pad" maxLength={4}
-                  value={filterYearTo} onChangeText={setFilterYearTo} />
-              </View>
 
 
             
@@ -695,4 +714,5 @@ const fm = StyleSheet.create({
   listItemTxt:   { fontSize: 14, color: C.text },
   applyBtn:      { backgroundColor: C.accent, borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 8 },
   applyTxt:      { fontSize: 15, fontWeight: "900", color: "#000" },
+  priceInput:    { flex: 1, backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: C.text, fontSize: 14 },
 });

@@ -1,25 +1,85 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "../../constants/theme";
 import { useLanguage } from "../../i18n/languagecontext";
 import { useTheme } from "../../context/themeContext";
-// Et dans le composant :
+import { loginWithFacebook } from "../../services/facebook.service";
+import { collection, getCountFromServer, query, where } from "firebase/firestore";
+import { db } from "../../config/firebase";
+import { useGoogleLogin } from "../../services/google.service";
 
 export default function WelcomeScreen({ navigation }) {
   const { t, isRTL, toggleLang, lang } = useLanguage();
+  const [fbLoading, setFbLoading] = useState(false);
+  const [realStats, setRealStats] = useState({ listings: 0, vendeurs: 0, wilayas: 58 });
+
+  // ── Google (expo-auth-session) ──
+  const {
+    loginWithGoogle,
+    loading: gLoading,
+    error:   gError,
+    result:  gResult,
+    ready:   gReady,
+  } = useGoogleLogin();
+
+  useEffect(() => {
+    if (!gResult) return;
+    navigation.reset({
+      index: 0,
+      routes: [{ name: gResult.isNewUser ? "ChooseRole" : "Main" }],
+    });
+  }, [gResult]);
+
+  useEffect(() => {
+    if (gError) Alert.alert("Erreur", gError);
+  }, [gError]);
 
   const stats = [
-    ["10K+", isRTL ? "إعلان" : "Annonces"],
-    ["5K+",  isRTL ? "بائع" : "Vendeurs"],
-    ["4.8",  isRTL ? "التقييم" : "Note moy."],
+    [(realStats?.listings || 0).toLocaleString(), isRTL ? "إعلان" : "Annonces"],
+    [(realStats?.vendeurs || 0).toLocaleString(), isRTL ? "بائع" : "Vendeurs"],
+    ["4.8", isRTL ? "التقييم" : "Note moy."],
   ];
+
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const listingsSnap = await getCountFromServer(collection(db, "listings"));
+        const vendeursSnap = await getCountFromServer(
+          query(collection(db, "users"), where("role", "==", "vendeur"))
+        );
+        setRealStats({
+          listings: listingsSnap.data().count,
+          vendeurs: vendeursSnap.data().count,
+          wilayas: 58,
+        });
+      } catch (e) {
+        // Silent fail, garde valeurs par défaut
+      }
+    };
+    loadStats();
+  }, []);
+
+  const handleFacebook = async () => {
+    setFbLoading(true);
+    try {
+      const { isNewUser } = await loginWithFacebook();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: isNewUser ? "ChooseRole" : "Main" }],
+      });
+    } catch (e) {
+      Alert.alert("Erreur", e.message || "Connexion Facebook annulée");
+    }
+    setFbLoading(false);
+  };
+
+  const busy = fbLoading || gLoading;
 
   return (
     <View style={s.container}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
-      {/* Bouton langue */}
       <View style={s.topBar}>
         <TouchableOpacity onPress={toggleLang} style={s.langBtn}>
           <Text style={s.langTxt}>{lang === "fr" ? "عربي" : "FR"}</Text>
@@ -36,9 +96,7 @@ export default function WelcomeScreen({ navigation }) {
 
       <View style={s.center}>
         <Text style={[s.tagline, { textAlign: "center" }]}>
-          {isRTL
-            ? "السوق الإلكتروني\n"
-            : "La marketplace\n"}
+          {isRTL ? "السوق الإلكتروني\n" : "La marketplace\n"}
           <Text style={{ color: C.accent }}>
             {isRTL ? "قطع غيار السيارات" : "pièces auto"}
           </Text>
@@ -60,20 +118,49 @@ export default function WelcomeScreen({ navigation }) {
       </View>
 
       <View style={s.btns}>
+        {/* Facebook */}
         <TouchableOpacity
-          style={[s.btnPrimary, { flexDirection: isRTL ? "row-reverse" : "row" }]}
-          onPress={() => navigation.navigate("Register")}
+          style={[s.btnFb, { flexDirection: isRTL ? "row-reverse" : "row" }]}
+          onPress={handleFacebook}
+          disabled={busy}
           activeOpacity={0.85}>
-          <Ionicons name="person-add-outline" size={18} color="#000" />
-          <Text style={s.btnPrimaryTxt}>{t("register")}</Text>
+          {fbLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="logo-facebook" size={22} color="#fff" />
+              <Text style={s.btnFbTxt}>
+                {isRTL ? "المتابعة مع فيسبوك" : "Continuer avec Facebook"}
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
 
+        {/* Google */}
+        <TouchableOpacity
+          style={[s.btnGoogle, { flexDirection: isRTL ? "row-reverse" : "row" }, !gReady && { opacity: 0.6 }]}
+          onPress={loginWithGoogle}
+          disabled={busy || !gReady}
+          activeOpacity={0.85}>
+          {gLoading ? (
+            <ActivityIndicator color="#000" />
+          ) : (
+            <>
+              <Ionicons name="logo-google" size={22} color="#EA4335" />
+              <Text style={s.btnGoogleTxt}>
+                {isRTL ? "المتابعة مع جوجل" : "Continuer avec Google"}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        {/* Login classique */}
         <TouchableOpacity
           style={[s.btnOutline, { flexDirection: isRTL ? "row-reverse" : "row" }]}
           onPress={() => navigation.navigate("Login")}
           activeOpacity={0.85}>
           <Ionicons name="log-in-outline" size={18} color={C.accent} />
-          <Text style={s.btnOutlineTxt}>{t("login")}</Text>
+          <Text style={s.btnOutlineTxt}>{isRTL ? "لدي حساب" : "J'ai déjà un compte"}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -106,8 +193,10 @@ const s = StyleSheet.create({
   statN:        { fontSize: 22, fontWeight: "900", color: C.accent },
   statL:        { fontSize: 10, color: C.textMuted, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
   btns:         { gap: 12 },
-  btnPrimary:   { alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: C.accent, borderRadius: 14, paddingVertical: 16 },
-  btnPrimaryTxt:{ fontSize: 15, fontWeight: "800", color: "#000" },
+  btnFb:        { alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#1877F2", borderRadius: 14, paddingVertical: 16 },
+  btnFbTxt:     { fontSize: 15, fontWeight: "800", color: "#fff" },
+  btnGoogle:    { alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#fff", borderRadius: 14, paddingVertical: 16 },
+  btnGoogleTxt: { fontSize: 15, fontWeight: "800", color: "#000" },
   btnOutline:   { alignItems: "center", justifyContent: "center", gap: 10, borderRadius: 14, paddingVertical: 15, borderWidth: 1.5, borderColor: C.accent + "60" },
   btnOutlineTxt:{ fontSize: 15, fontWeight: "800", color: C.accent },
   skipBtn:      { alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 6 },

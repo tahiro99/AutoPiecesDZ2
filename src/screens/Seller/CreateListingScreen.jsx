@@ -444,7 +444,7 @@ export default function CreateListingScreen({ navigation }) {
         <Text style={s.label}>WILAYA</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={s.chipRow}>
-            {WILAYAS.slice(0, 20).map((w) => (
+       {WILAYAS.map((w) => (
               <TouchableOpacity key={w} onPress={() => set("wilaya", w)}
                 style={[s.chip, form.wilaya === w && s.chipActive]}>
                 <Text style={[s.chipTxt, form.wilaya === w && { color: C.accent }]}>{w}</Text>

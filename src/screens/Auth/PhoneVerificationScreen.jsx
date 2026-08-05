@@ -46,9 +46,16 @@ export default function PhoneVerificationScreen({ route, navigation }) {
       setCode("");
       Alert.alert("SMS envoyé ✅", `Code envoyé au ${formattedPhone}`);
     } catch (e) {
-      console.log("[sendOtp]", e.code, e.message);
-      Alert.alert("Erreur", e.message || "Impossible d'envoyer le SMS. Réessayez.");
-    }
+  console.log("FULL ERROR");
+  console.log(JSON.stringify(e, null, 2));
+
+  Alert.alert(
+    "Erreur",
+    e.message +
+      "\n\n" +
+      JSON.stringify(e.details || {}, null, 2)
+  );
+}
     setSending(false);
   };
 

@@ -18,7 +18,7 @@ import { auth } from "../../config/firebase";
 import { addDoc, collection, serverTimestamp, updateDoc, doc } from "firebase/firestore";
 import { db } from "../../config/firebase";
 import { useLanguage } from "../../i18n/languagecontext";
-
+import { useCollection } from "../../hooks/useCollection";
 const STORAGE_BUCKET = "sustained-hold-486101-b9.firebasestorage.app";
 
 async function uploadImage(uri, uid) {
@@ -56,7 +56,13 @@ export default function ChatScreen({ route, navigation }) {
     conversationId: initialConvId, sellerName, listingTitle,
     listingPrice, sellerId, buyerId,
   } = route.params;
-
+// Déterminer le nom à afficher : si je suis le vendeur, montrer le nom du client
+const { data: convs } = useCollection("conversations");
+const currentConv = (convs || []).find(c => c.id === (initialConvId || convId));
+const isMeSeller = uid === (currentConv?.sellerId || sellerId);
+const displayName = isMeSeller 
+  ? (currentConv?.buyerName || "Client")
+  : (currentConv?.sellerName || sellerName || "Vendeur");
   const { user }              = useAuthContext();
   const [convId, setConvId]   = useState(initialConvId);
   const realConvId            = typeof convId === "string" ? convId : null;

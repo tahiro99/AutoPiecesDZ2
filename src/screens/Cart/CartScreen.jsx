@@ -8,7 +8,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { C } from "../../constants/theme";
 import { useAuthContext } from "../../context/AuthContext";
 import { placeOrder } from "../../services/db.service";
-import { createNotif } from "../../services/Notif.service";
 import { MapView } from "../../components/MapPicker";
 import { WILAYAS } from "../../constants/wilayas";
 import { DELIVERY_FEES, DEFAULT_FEE, getDeliveryInfo, ZONE_SUMMARY } from "../../constants/deliveryPrices";
@@ -67,14 +66,7 @@ export default function CartScreen({ route, navigation }) {
         profile?.displayName || user?.displayName || "Client",
         user?.email || "",
       );
-      if (item?.sellerId) {
-        createNotif(item.sellerId, {
-          type: "commande",
-          title: isRTL ? "طلب جديد ! 📦" : "Nouvelle commande ! 📦",
-          body: `"${item.title}" — ${(item.price || 0).toLocaleString()} DA`,
-          data: { screen: "SellerDashboard" },
-        }).catch(() => {});
-      }
+
       setStep("success");
     } catch (e) {
       Alert.alert(t("error"), isRTL ? "تعذر إتمام الطلب." : "Commande impossible. Vérifiez votre connexion.");
