@@ -10,15 +10,18 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../config/firebase";
 
 export default function MessagesListScreen({ navigation }) {
-  const { t, isRTL } = useLanguage();
-  const { user, profile } = useAuthContext();
-  const { data: convs, loading } = useCollection("conversations", "lastMessageAt");
+const { user, profile } = useAuthContext();
+  const uid = user?.uid || null;
   const [userNames, setUserNames] = useState({});
-  const uid = user?.uid || "guest";
 
-  const myConvs = (convs || []).filter((c) =>
-    c.participants?.includes(uid) || c.buyerId === uid || c.sellerId === uid
-  );
+  const { data: convsRaw, loading } = useCollection("conversations", {
+    filters: uid ? [["participants", "array-contains", uid]] : [],
+    orderField: "lastMessageAt",
+    max: 100,
+    enabled: !!uid,
+  });
+
+  const myConvs = convsRaw || [];
   const total = myConvs.reduce((s, c) => s + (c.unread || 0), 0);
 
   // Récupère les noms des utilisateurs manquants
