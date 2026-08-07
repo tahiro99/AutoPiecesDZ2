@@ -17,10 +17,7 @@ import Tag from "../../components/Tag";
 import Spinner from "../../components/Spinner";
 import SubscriptionBanner from "../../components/SubscriptionBanner";
 import { useSubscription } from "../../hooks/useSubscription";
-import { CATEGORIES } from "../../constants/categories";
 import { WILAYAS } from "../../constants/wilayas";
-import { useEffect } from "react";
-import { collection, getCountFromServer, query, where } from "firebase/firestore";
 
 const WILAYAS_LIST = WILAYAS || ["Alger","Oran","Constantine","Blida","Sétif","Annaba","Tlemcen","Batna"];
 
@@ -121,15 +118,15 @@ function OrderCard({ order, onStatusChange, onArchive, t }) {
 
 // ── EDIT LISTING MODAL ────────────────────────────────────────────
 function EditListingModal({ listing, onClose, onSaved }) {
-  const [title, setTitle]       = useState(listing?.title || "");
-  const [price, setPrice]       = useState(String(listing?.price || ""));
-  const [stock, setStock]       = useState(String(listing?.stock || "1"));
-  const [desc, setDesc]         = useState(listing?.description || "");
-  const [cond, setCond]         = useState(listing?.condition || "Neuf");
-  const [wilaya, setWilaya]     = useState(listing?.wilaya || "Alger");
-  const [brand, setBrand]       = useState(listing?.brand || "");
-  const [model, setModel]       = useState(listing?.model || "");
-  const [saving, setSaving]     = useState(false);
+  const [title, setTitle]   = useState(listing?.title || "");
+  const [price, setPrice]   = useState(String(listing?.price || ""));
+  const [stock, setStock]   = useState(String(listing?.stock || "1"));
+  const [desc, setDesc]     = useState(listing?.description || "");
+  const [cond, setCond]     = useState(listing?.condition || "Neuf");
+  const [wilaya, setWilaya] = useState(listing?.wilaya || "Alger");
+  const [brand, setBrand]   = useState(listing?.brand || "");
+  const [model, setModel]   = useState(listing?.model || "");
+  const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
     if (!title.trim()) { Alert.alert("", "Le titre est obligatoire"); return; }
@@ -205,7 +202,7 @@ function EditListingModal({ listing, onClose, onSaved }) {
             <Text style={em.lbl}>Wilaya</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
               <View style={{ flexDirection: "row", gap: 8 }}>
-                {WILAYAS_LIST.slice(0, 20).map(w => (
+                {WILAYAS_LIST.map(w => (
                   <TouchableOpacity key={w} onPress={() => setWilaya(w)}
                     style={[em.chip, wilaya === w && em.chipOn]}>
                     <Text style={[em.chipTxt, wilaya === w && { color: C.accent }]}>{w}</Text>
@@ -243,25 +240,43 @@ function EditListingModal({ listing, onClose, onSaved }) {
 // ── MAIN SCREEN ───────────────────────────────────────────────────
 export default function SellerDashboardScreen({ navigation }) {
   const { t, isRTL } = useLanguage();
-  const { isExpired, daysLeft, isTrial } = useSubscription();
+  const { isExpired } = useSubscription();
   const STATUS_LABELS = getStatusLabels(t);
-  const { user }                           = useAuthContext();
-  const { data: listings, loading: loadL } = useCollection("listings");
-  const { data: orders,   loading: loadO } = useCollection("orders");
-  const { data: convs }                    = useCollection("conversations");
+  const { user } = useAuthContext();
+  const uid = user?.uid || "";
 
-  const [activeTab, setActiveTab]         = useState("orders");
+  // ── Filtrage CÔTÉ SERVEUR ──
+  const { data: listingsRaw, loading: loadL } = useCollection("listings", {
+    filters: uid ? [["sellerId", "==", uid]] : [],
+    max: 200,
+    enabled: !!uid,
+  });
+
+  const { data: ordersRaw, loading: loadO } = useCollection("orders", {
+    filters: uid ? [["sellerId", "==", uid]] : [],
+    max: 200,
+    enabled: !!uid,
+  });
+
+  const { data: convsRaw } = useCollection("conversations", {
+    filters: uid ? [["participants", "array-contains", uid]] : [],
+    orderField: "lastMessageAt",
+    max: 100,
+    enabled: !!uid,
+  });
+
+  const myListings = listingsRaw || [];
+  const myOrders   = ordersRaw   || [];
+  const myConvs    = convsRaw    || [];
+
+  const [activeTab, setActiveTab]           = useState("orders");
   const [editingListing, setEditingListing] = useState(null);
-
-  const uid        = user?.uid || "";
-  const myListings = (listings || []).filter(l => l.sellerId === uid);
-  const myOrders   = (orders   || []).filter(o => o.sellerId === uid);
-  const myConvs    = (convs    || []).filter(c => c.participants?.includes(uid));
 
   const activeOrders   = myOrders.filter(o => o.status !== "archived");
   const archivedOrders = myOrders.filter(o => o.status === "archived");
   const pendingCount   = myOrders.filter(o => o.status === "pending").length;
-  const revenue        = myOrders.filter(o => ["delivered","archived"].includes(o.status)).reduce((s,o) => s+(o.price||0), 0);
+  const revenue        = myOrders.filter(o => ["delivered","archived"].includes(o.status))
+                                 .reduce((s,o) => s+(o.price||0), 0);
 
   const STATUS_NOTIF_BODY = {
     confirmed: "Votre commande a été confirmée ✅",
@@ -274,7 +289,12 @@ export default function SellerDashboardScreen({ navigation }) {
       await updateDoc(doc(db, "orders", orderId), { status: newStatus });
       const order = myOrders.find(o => o.id === orderId);
       if (order?.buyerId && STATUS_NOTIF_BODY[newStatus]) {
-        createNotif(order.buyerId, { type: "livraison", title: "Commande mise à jour", body: STATUS_NOTIF_BODY[newStatus], data: { screen: "Orders" } }).catch(() => {});
+        createNotif(order.buyerId, {
+          type: "livraison",
+          title: "Commande mise à jour",
+          body: STATUS_NOTIF_BODY[newStatus],
+          data: { screen: "Orders" },
+        }).catch(() => {});
       }
     } catch (e) {
       Alert.alert("Erreur", "Impossible de mettre à jour la commande.");
@@ -301,7 +321,6 @@ export default function SellerDashboardScreen({ navigation }) {
     ]);
   };
 
-  // ── FIX: navigation vers CreateListing ──
   const goToCreate = () => {
     try {
       navigation.navigate("CreateListing");
@@ -328,7 +347,6 @@ export default function SellerDashboardScreen({ navigation }) {
       <ScreenHeader title="Dashboard Vendeur" />
       <SubscriptionBanner navigation={navigation} />
 
-      {/* ── BLOCAGE ABONNEMENT EXPIRÉ ── */}
       {isExpired ? (
         <View style={sb.container}>
           <View style={sb.icon}>
@@ -342,10 +360,8 @@ export default function SellerDashboardScreen({ navigation }) {
             <Text style={sb.priceLabel}>Abonnement mensuel</Text>
             <Text style={sb.price}>500 DA <Text style={sb.priceSub}>/mois</Text></Text>
           </View>
-          <TouchableOpacity
-            style={sb.btn}
-            onPress={() => navigation.navigate("Subscription")}
-            activeOpacity={0.85}>
+          <TouchableOpacity style={sb.btn}
+            onPress={() => navigation.navigate("Subscription")} activeOpacity={0.85}>
             <Ionicons name="refresh-outline" size={18} color="#000" />
             <Text style={sb.btnTxt}>Renouveler maintenant</Text>
           </TouchableOpacity>
@@ -452,7 +468,6 @@ export default function SellerDashboardScreen({ navigation }) {
             ) : (
               myListings.map(l => (
                 <View key={l.id} style={s.listingCard}>
-                  {/* ── Image ou lettre ── */}
                   <View style={s.listingImg}>
                     {l.photos?.[0] || (l.img?.startsWith?.("http"))
                       ? <Image source={{ uri: l.photos?.[0] || l.img }} style={s.listingImgPhoto} />
@@ -464,7 +479,9 @@ export default function SellerDashboardScreen({ navigation }) {
                     <Text style={s.listingTitle} numberOfLines={1}>{l.title}</Text>
                     <Text style={s.listingPrice}>{(l.price || 0).toLocaleString()} DA</Text>
                     <View style={{ flexDirection: "row", gap: 6, alignItems: "center", marginTop: 4 }}>
-                      <Tag color={l.condition === "Neuf" ? C.success : C.info}>{l.condition || "N/A"}</Tag>
+                      <Tag color={(l.condition === "Neuf" || l.condition === "جديد") ? C.success : C.info}>
+                        {l.condition || "N/A"}
+                      </Tag>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
                         <Ionicons name="eye-outline" size={11} color={C.textMuted} />
                         <Text style={{ fontSize: 10, color: C.textMuted }}>{l.views || 0}</Text>
@@ -475,7 +492,6 @@ export default function SellerDashboardScreen({ navigation }) {
                     </View>
                   </View>
 
-                  {/* ── Boutons modifier + supprimer ── */}
                   <View style={{ gap: 6 }}>
                     <TouchableOpacity onPress={() => setEditingListing(l)}
                       style={s.editBtn} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
@@ -506,9 +522,11 @@ export default function SellerDashboardScreen({ navigation }) {
                   <TouchableOpacity key={c.id}
                     onPress={() => navigation.navigate("Chat", {
                       conversationId: c.id,
-                      sellerName: c.buyerName || "Client",
+                      sellerName: c.sellerName,
                       listingTitle: c.listingTitle,
                       listingPrice: c.listingPrice,
+                      sellerId: c.sellerId,
+                      buyerId: c.buyerId,
                     })}
                     style={[s.msgRow, i < myConvs.length - 1 && s.msgRowBorder]}
                     activeOpacity={0.8}>
@@ -533,7 +551,6 @@ export default function SellerDashboardScreen({ navigation }) {
       </ScrollView>
       )}
 
-      {/* ── MODAL MODIFIER ANNONCE ── */}
       {editingListing && (
         <EditListingModal
           listing={editingListing}
