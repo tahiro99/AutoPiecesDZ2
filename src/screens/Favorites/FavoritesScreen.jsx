@@ -11,11 +11,18 @@ import Spinner from "../../components/Spinner";
 import { useLanguage } from "../../i18n/languagecontext";
 
 export default function FavoritesScreen({ navigation }) {
+ const { user } = useAuthContext();
   const { t, isRTL } = useLanguage();
-  const { data: favDocs, loading } = useCollection("favorites");
-  const { user } = useAuthContext();
   const USER_ID = user?.uid || "";
-  const myFavs  = (favDocs || []).filter((f) => f.userId === USER_ID);
+
+  const { data: favDocs, loading } = useCollection("favorites", {
+    filters: USER_ID ? [["userId", "==", USER_ID]] : [],
+    orderField: null,
+    max: 300,
+    enabled: !!USER_ID,
+  });
+
+  const myFavs = favDocs || [];
 
   return (
     <View style={s.container}>
