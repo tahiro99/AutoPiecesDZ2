@@ -117,7 +117,7 @@ useEffect(() => {
        {[
   [realStats.listings.toLocaleString(), isRTL ? "إعلان" : "ANNONCES"],
   [realStats.vendeurs.toLocaleString(), isRTL ? "بائع" : "VENDEURS"],
-  ["58",  isRTL ? "ولاية" : "WILAYAS"],
+  ["69",  isRTL ? "ولاية" : "WILAYAS"],
   ["4.8", isRTL ? "التقييم" : "NOTE MOY."],
 ].map(([n, l]) => (
               <View key={l} style={s.statCard}>

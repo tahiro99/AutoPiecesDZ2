@@ -12,7 +12,8 @@ import { useGoogleLogin } from "../../services/google.service";
 export default function WelcomeScreen({ navigation }) {
   const { t, isRTL, toggleLang, lang } = useLanguage();
   const [fbLoading, setFbLoading] = useState(false);
-  const [realStats, setRealStats] = useState({ listings: 0, vendeurs: 0, wilayas: 58 });
+  const [realStats, setRealStats] = useState({ listings: 0, vendeurs: 0, wilayas: 69
+   });
 
   // ── Google (expo-auth-session) ──
   const {
@@ -51,7 +52,7 @@ export default function WelcomeScreen({ navigation }) {
         setRealStats({
           listings: listingsSnap.data().count,
           vendeurs: vendeursSnap.data().count,
-          wilayas: 58,
+          wilayas: 69,
         });
       } catch (e) {
         // Silent fail, garde valeurs par défaut
@@ -104,8 +105,8 @@ export default function WelcomeScreen({ navigation }) {
         </Text>
         <Text style={[s.sub, { textAlign: "center" }]}>
           {isRTL
-            ? "58 ولاية · بائعون موثوقون · توصيل سريع"
-            : "58 wilayas · vendeurs vérifiés · livraison rapide"}
+            ? "69 ولاية · بائعون موثوقون · توصيل سريع"
+            : "69 wilayas · vendeurs vérifiés · livraison rapide"}
         </Text>
         <View style={s.stats}>
           {stats.map(([n, l]) => (

@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Alert, Image, useWindowDimensions, Share,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "../../constants/theme";
 import { useAuthContext } from "../../context/AuthContext";
@@ -18,32 +19,62 @@ export default function ListingDetail({ route, navigation }) {
   const { width }           = useWindowDimensions();
   const { listing }         = route.params;
   const { user, profile }   = useAuthContext();
-  const [isFav, setIsFav]   = useState(false);
   const [contacting, setContacting] = useState(false);
   const [showReport, setShowReport] = useState(false);
 
-  const { data: ratings } = useCollection("ratings");
-  const sellerRatings = (ratings || []).filter(r => r.sellerId === listing.sellerId);
+  const uid = user?.uid || null;
+
+  // ── Notes du vendeur (filtré côté serveur) ──
+  const { data: ratings } = useCollection("ratings", {
+    filters: listing.sellerId ? [["sellerId", "==", listing.sellerId]] : [],
+    max: 200,
+    enabled: !!listing.sellerId,
+  });
+
+  // ── Mes favoris (filtré côté serveur) ──
+  const { data: favDocs } = useCollection("favorites", {
+    filters: uid ? [["userId", "==", uid]] : [],
+    orderField: null,
+    max: 300,
+    enabled: !!uid,
+  });
+
+  // Le cœur reflète l'état réel, plus un état local qui démarrait toujours à false
+  const isFav = (favDocs || []).some((f) => f.listingId === listing.id);
+
+  const sellerRatings = ratings || [];
   const avgRating = sellerRatings.length > 0
     ? (sellerRatings.reduce((s, r) => s + (r.stars || 0), 0) / sellerRatings.length).toFixed(1)
     : null;
 
-  const uid       = user?.uid || null;
   const isOwner   = uid === listing.sellerId;
   const isVendeur = profile?.role === "vendeur";
   const align     = isRTL ? "right" : "left";
   const row       = isRTL ? "row-reverse" : "row";
 
-  useEffect(() => { incrementViews(listing.id).catch(() => {}); }, []);
+  // Une seule vue comptée par appareil et par annonce (évite le hotspot Firestore)
+  useEffect(() => {
+    (async () => {
+      try {
+        const key = `@viewed_${listing.id}`;
+        if (await AsyncStorage.getItem(key)) return;
+        await AsyncStorage.setItem(key, "1");
+        incrementViews(listing.id).catch(() => {});
+      } catch (_) {
+        incrementViews(listing.id).catch(() => {});
+      }
+    })();
+  }, []);
 
   // ── PARTAGER ──
   const handleShare = async () => {
     try {
+     const url = `https://autopiecesdz.com/listing/${listing.id}`;
       await Share.share({
         title: listing.title,
         message: isRTL
-          ? `🔧 ${listing.title}\n💰 ${(listing.price || 0).toLocaleString()} DA\n📍 ${listing.wilaya || "Algérie"}\n\nتجدها على AutoPièces DZ 🇩🇿`
-          : `🔧 ${listing.title}\n💰 ${(listing.price || 0).toLocaleString()} DA\n📍 ${listing.wilaya || "Algérie"}\n\nTrouvez-la sur AutoPièces DZ 🇩🇿\nhttps://autopiecesdz.com`,
+          ? `🔧 ${listing.title}\n💰 ${(listing.price || 0).toLocaleString()} DA\n📍 ${listing.wilaya || "الجزائر"}\n\nتجدها على AutoPièces DZ 🇩🇿\n${url}`
+          : `🔧 ${listing.title}\n💰 ${(listing.price || 0).toLocaleString()} DA\n📍 ${listing.wilaya || "Algérie"}\n\nTrouvez-la sur AutoPièces DZ 🇩🇿\n${url}`,
       });
     } catch (e) {}
   };
@@ -91,12 +122,12 @@ export default function ListingDetail({ route, navigation }) {
   const toggleFav = async () => {
     if (!user) { navigation.navigate("Login"); return; }
     try {
-      if (isFav) { await removeFavorite(uid, listing.id); setIsFav(false); }
-      else        { await addFavorite(uid, listing);       setIsFav(true);  }
+      if (isFav) await removeFavorite(uid, listing.id);
+      else       await addFavorite(uid, listing);
     } catch (e) {}
   };
 
-  const hasPhotos   = listing.photos?.length > 0;
+  const hasPhotos    = listing.photos?.length > 0;
   const conditionNew = listing.condition === "Neuf" || listing.condition === "جديد";
 
   return (
@@ -106,14 +137,10 @@ export default function ListingDetail({ route, navigation }) {
         onBack={() => navigation.goBack()}
         right={
           <View style={{ flexDirection: "row", gap: 8 }}>
-            {/* ── Bouton Partager ── */}
             <TouchableOpacity onPress={handleShare} style={s.iconBtn}>
               <Ionicons name="share-social-outline" size={20} color={C.text} />
             </TouchableOpacity>
-            {/* ── Bouton Favori ── */}
-            <TouchableOpacity onPress={toggleFav} style={s.iconBtn}>
-              <Ionicons name={isFav ? "heart" : "heart-outline"} size={20} color={isFav ? C.danger : C.text} />
-            </TouchableOpacity>
+      
           </View>
         }
       />
@@ -169,8 +196,8 @@ export default function ListingDetail({ route, navigation }) {
           <View style={[s.statsRow, { flexDirection: row }]}>
             {[
               [avgRating ? `⭐ ${avgRating}` : "N/A", t("note")],
-              [listing.reviews || 0, t("reviews")],
-              [listing.views   || 0, t("views")],
+              [sellerRatings.length,                  t("reviews")],
+              [listing.views || 0,                    t("views")],
             ].map(([n, l]) => (
               <View key={l} style={s.statCard}>
                 <Text style={s.statN}>{n}</Text>
@@ -262,7 +289,7 @@ export default function ListingDetail({ route, navigation }) {
             </View>
           </View>
 
-          {/* ── BOUTON PARTAGER (bas de page) ── */}
+          {/* ── BOUTON PARTAGER ── */}
           <TouchableOpacity onPress={handleShare} style={[s.shareBtn, { flexDirection: row }]} activeOpacity={0.8}>
             <Ionicons name="share-social-outline" size={18} color={C.accent} />
             <Text style={s.shareTxt}>{isRTL ? "مشاركة هذا الإعلان" : "Partager cette annonce"}</Text>

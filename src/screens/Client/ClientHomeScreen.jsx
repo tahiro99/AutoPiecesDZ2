@@ -256,7 +256,7 @@ useEffect(() => {
               </TouchableOpacity>
             </View>
             <View style={cs.bannerRight}>
-  {[["58", "Wilayas"], [realStats.vendeurs.toLocaleString(), "Vendeurs"], ["4.8★", "Note"]].map(([n, l]) => (
+  {[["69", "Wilayas"], [realStats.vendeurs.toLocaleString(), "Vendeurs"], ["4.8★", "Note"]].map(([n, l]) => (
                 <View key={l} style={cs.bStat}><Text style={cs.bStatN}>{n}</Text><Text style={cs.bStatL}>{l}</Text></View>
               ))}
             </View>
