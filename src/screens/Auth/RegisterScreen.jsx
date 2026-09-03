@@ -9,9 +9,7 @@ import Input from "../../components/Input";
 import Btn from "../../components/Btn";
 import { useLanguage } from "../../i18n/languagecontext";
 import { WILAYAS } from "../../constants/wilayas";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "../../config/firebase";
+import { register, getErrorMessage } from "../../services/auth";
 
 export default function RegisterScreen({ navigation }) {
   const { t, isRTL } = useLanguage();
@@ -23,7 +21,8 @@ export default function RegisterScreen({ navigation }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm]   = useState("");
   const [error, setError]       = useState("");
-  const [wilayaModal, setWilayaModal] = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [wilayaModal, setWilayaModal]   = useState(false);
   const [wilayaSearch, setWilayaSearch] = useState("");
 
   const filteredWilayas = WILAYAS.filter((w) =>
@@ -32,41 +31,25 @@ export default function RegisterScreen({ navigation }) {
 
   const align = isRTL ? "right" : "left";
 
- const handleRegister = async () => {
-  if (!name.trim())         { setError(isRTL ? "الاسم مطلوب" : "Le nom est obligatoire"); return; }
-  if (!phone.trim())        { setError(isRTL ? "رقم الهاتف مطلوب" : "Le téléphone est obligatoire"); return; }
-  if (!email.trim())        { setError(isRTL ? "البريد الإلكتروني مطلوب" : "L'email est obligatoire"); return; }
-  if (!email.includes("@")) { setError(isRTL ? "بريد إلكتروني غير صالح" : "Email invalide"); return; }
-  if (!wilaya)              { setError(isRTL ? "اختر ولايتك" : "Sélectionnez votre wilaya"); return; }
-  if (password.length < 6)  { setError(isRTL ? "كلمة المرور 6 أحرف على الأقل" : "Mot de passe minimum 6 caractères"); return; }
-  if (password !== confirm) { setError(isRTL ? "كلمتا المرور غير متطابقتين" : "Les mots de passe ne correspondent pas"); return; }
+  const handleRegister = async () => {
+    if (!name.trim())         { setError(isRTL ? "الاسم مطلوب" : "Le nom est obligatoire"); return; }
+    if (!phone.trim())        { setError(isRTL ? "رقم الهاتف مطلوب" : "Le téléphone est obligatoire"); return; }
+    if (!email.trim())        { setError(isRTL ? "البريد الإلكتروني مطلوب" : "L'email est obligatoire"); return; }
+    if (!email.includes("@")) { setError(isRTL ? "بريد إلكتروني غير صالح" : "Email invalide"); return; }
+    if (!wilaya)              { setError(isRTL ? "اختر ولايتك" : "Sélectionnez votre wilaya"); return; }
+    if (password.length < 8)  { setError(isRTL ? "كلمة المرور 8 أحرف على الأقل" : "Mot de passe minimum 8 caractères"); return; }
+    if (password !== confirm) { setError(isRTL ? "كلمتا المرور غير متطابقتين" : "Les mots de passe ne correspondent pas"); return; }
 
-  setError("");
-  try {
-    const cred = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
-    const uid = cred.user.uid;
-    await setDoc(doc(db, "users", uid), {
-      uid,
-      displayName: name.trim(),
-      phone: phone.trim(),
-      email: email.trim().toLowerCase(),
-      firebaseEmail: email.trim().toLowerCase(),
-      wilaya,
-      role,
-      verified: false,
-      createdAt: serverTimestamp(),
-    });
-    if (role === "vendeur") {
-      const { initVendorSubscription } = await import("../../services/subscription.service");
-      await initVendorSubscription(uid);
+    setError("");
+    setLoading(true);
+    try {
+      await register(email, password, name, role, phone, wilaya);
+      navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+    } catch (e) {
+      setError(getErrorMessage(e));
     }
-    navigation.reset({ index: 0, routes: [{ name: "Main" }] });
-  } catch (e) {
-    setError(e.code === "auth/email-already-in-use" 
-      ? (isRTL ? "هذا البريد مستخدم بالفعل" : "Cet email est déjà utilisé")
-      : e.message);
-  }
-};
+    setLoading(false);
+  };
 
   const roles = [
     { v: "client",  label: isRTL ? "مشتري" : "Client",  icon: "person-outline",     desc: isRTL ? "بحث وشراء قطع الغيار" : "Rechercher & acheter des pièces" },
@@ -161,7 +144,7 @@ export default function RegisterScreen({ navigation }) {
 
           <Text style={[s.label, { marginTop: 14, textAlign: align }]}>{t("password")}</Text>
           <Input icon="lock-closed-outline"
-            placeholder={isRTL ? "6 أحرف على الأقل" : "Minimum 6 caractères"}
+            placeholder={isRTL ? "8 أحرف على الأقل" : "Minimum 8 caractères"}
             value={password} onChangeText={setPassword} secureTextEntry rtl={isRTL} />
 
           <Text style={[s.label, { marginTop: 14, textAlign: align }]}>
@@ -172,7 +155,7 @@ export default function RegisterScreen({ navigation }) {
             value={confirm} onChangeText={setConfirm} secureTextEntry rtl={isRTL} />
         </View>
 
-        <Btn onPress={handleRegister}>
+        <Btn onPress={handleRegister} loading={loading}>
           {isRTL ? `إنشاء حساب ${role === "client" ? "مشتري" : "بائع"}` : `Créer mon compte ${role}`}
         </Btn>
 

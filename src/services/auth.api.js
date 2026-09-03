@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiPost, saveTokens, clearTokens, loadTokens, apiGet } from "./api.client";
+import { apiPost, apiGet, saveTokens, clearTokens, loadTokens } from "./api.client";
+import { emitAuthChange } from "./authEvents";
 
-// Messages d'erreur adaptés aux réponses de l'API
 export const getErrorMessage = (e) => {
   if (e?.status === 409) return "Cet email est déjà utilisé.";
   if (e?.status === 401) return "Email ou mot de passe incorrect.";
@@ -11,18 +11,18 @@ export const getErrorMessage = (e) => {
   return e?.message || "Erreur inattendue.";
 };
 
-// L'API renvoie { user, accessToken, refreshToken }.
-// On garde le rôle en attente : il sera envoyé après, via /me/role
-export async function register(email, password, displayName, role, phone) {
+export async function register(email, password, displayName, role, phone, wilaya) {
   const d = await apiPost("/auth/register", {
     email: email.trim().toLowerCase(),
     password,
     displayName: displayName.trim(),
     phone: phone?.trim() || "",
+    wilaya: wilaya || "",
   });
 
   await saveTokens(d.accessToken, d.refreshToken);
 
+  // Le rôle se définit après l'inscription — l'essai vendeur est créé côté serveur
   if (role) {
     try {
       await apiPost("/me/role", { role });
@@ -30,6 +30,7 @@ export async function register(email, password, displayName, role, phone) {
     } catch (e) {}
   }
 
+  emitAuthChange(d.user);
   return d.user;
 }
 
@@ -40,6 +41,7 @@ export async function login(email, password) {
   });
 
   await saveTokens(d.accessToken, d.refreshToken);
+  emitAuthChange(d.user);
   return d.user;
 }
 
@@ -54,9 +56,10 @@ export async function logout() {
   } catch (e) {}
   await clearTokens();
   await AsyncStorage.multiRemove(["@apz_profile", "@apz_role"]).catch(() => {});
+  emitAuthChange(null);
 }
 
-// Restaure la session au démarrage — remplace onAuthStateChanged
+// Remplace onAuthStateChanged : vérifie au démarrage si les jetons sont valides
 export async function restoreSession() {
   const { accessToken, refreshToken } = await loadTokens();
   if (!accessToken && !refreshToken) return null;

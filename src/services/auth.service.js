@@ -1,4 +1,4 @@
-// src/services/auth.service.js — VERSION ORIGINALE EXACTE
+// src/services/auth.service.js — Firebase
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -25,18 +25,30 @@ const FR = {
 };
 export const getErrorMessage = (e) => FR[e?.code] || e?.message || "Erreur inattendue.";
 
-export async function register(email, password, displayName, role, phone) {
+export async function register(email, password, displayName, role, phone, wilaya) {
   const cred = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
   await updateProfile(cred.user, { displayName: displayName.trim() });
   await AsyncStorage.setItem("@apz_role" + cred.user.uid, role);
+
   const profileData = {
-    uid: cred.user.uid, email: email.trim().toLowerCase(),
-    displayName: displayName.trim(), role, phone: phone?.trim() || "",
-    verified: false, createdAt: new Date().toISOString(),
+    uid:         cred.user.uid,
+    email:       email.trim().toLowerCase(),
+    displayName: displayName.trim(),
+    role,
+    phone:       phone?.trim() || "",
+    wilaya:      wilaya || "",
+    verified:    false,
+    createdAt:   new Date().toISOString(),
   };
+
   await AsyncStorage.setItem("@apz_profile" + cred.user.uid, JSON.stringify(profileData));
-  try { await setDoc(doc(db, "users", cred.user.uid), { ...profileData, createdAt: serverTimestamp() }); } catch (e) {}
+
+  try {
+    await setDoc(doc(db, "users", cred.user.uid), { ...profileData, createdAt: serverTimestamp() });
+  } catch (e) {}
+
   try { await sendEmailVerification(cred.user); } catch (e) {}
+
   return cred.user;
 }
 
@@ -51,6 +63,8 @@ export async function resetPassword(email) {
 
 export async function logout() {
   const uid = auth.currentUser?.uid;
-  if (uid) await AsyncStorage.multiRemove(["@apz_role" + uid, "@apz_profile" + uid]).catch(() => {});
+  if (uid) {
+    await AsyncStorage.multiRemove(["@apz_role" + uid, "@apz_profile" + uid]).catch(() => {});
+  }
   await signOut(auth);
 }
