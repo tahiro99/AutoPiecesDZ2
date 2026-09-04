@@ -84,7 +84,12 @@ export async function restoreSession() {
     return null;
   }
 }
-
+export async function loginWithGoogle(idToken) {
+  const d = await apiPost("/auth/google", { idToken });
+  await saveTokens(d.accessToken, d.refreshToken);
+  emitAuthChange(d.user);
+  return d.user;
+}
 export async function changePassword(current, next) {
   const d = await apiPost("/auth/change-password", { current, next });
   if (d?.refreshToken) {

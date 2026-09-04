@@ -5,8 +5,9 @@ import { C } from "../../constants/theme";
 import { useLanguage } from "../../i18n/languagecontext";
 import { useTheme } from "../../context/themeContext";
 import { loginWithFacebook } from "../../services/facebook.service";
-import { collection, getCountFromServer, query, where } from "firebase/firestore";
 import { db } from "../../config/firebase";
+import { USE_API } from "../../config/backend";
+import { apiGet } from "../../services/api.client";
 import { useGoogleLogin } from "../../services/google.service";
 
 export default function WelcomeScreen({ navigation }) {
@@ -45,6 +46,12 @@ export default function WelcomeScreen({ navigation }) {
   useEffect(() => {
     const loadStats = async () => {
       try {
+        if (USE_API) {
+          const d = await apiGet("/listings/stats/counts");
+          setRealStats({ listings: d.listings, vendeurs: d.vendeurs, wilayas: 69 });
+          return;
+        }
+        const { collection, getCountFromServer, query, where } = await import("firebase/firestore");
         const listingsSnap = await getCountFromServer(collection(db, "listings"));
         const vendeursSnap = await getCountFromServer(
           query(collection(db, "users"), where("role", "==", "vendeur"))
@@ -54,9 +61,7 @@ export default function WelcomeScreen({ navigation }) {
           vendeurs: vendeursSnap.data().count,
           wilayas: 69,
         });
-      } catch (e) {
-        // Silent fail, garde valeurs par défaut
-      }
+      } catch (e) {}
     };
     loadStats();
   }, []);

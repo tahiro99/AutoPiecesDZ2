@@ -5,6 +5,8 @@ import * as WebBrowser from "expo-web-browser";
 import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../config/firebase";
+import { USE_API } from "../config/backend";
+import { loginWithGoogle as apiLoginWithGoogle } from "./auth.api";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -13,16 +15,16 @@ const ANDROID_CLIENT_ID = "268280059559-u4nm6vn3aj7klsialnpo49es9g1s9383.apps.go
 const IOS_CLIENT_ID     = "268280059559-tusji4fgedrtldviu507b0fdv3io5lt4.apps.googleusercontent.com";
 
 export function useGoogleLogin() {
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState(null);
-  const [result, setResult]     = useState(null); // { isNewUser }
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState(null);
+  const [result, setResult]   = useState(null); // { isNewUser }
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId:     WEB_CLIENT_ID,
     androidClientId: ANDROID_CLIENT_ID,
     iosClientId:     IOS_CLIENT_ID,
   });
- console.log("[google] redirectUri:", request?.redirectUri);
+
   useEffect(() => {
     if (!response) return;
 
@@ -32,8 +34,7 @@ export function useGoogleLogin() {
       return;
     }
 
-    const idToken = response.params?.id_token
-      || response.authentication?.idToken;
+    const idToken = response.params?.id_token || response.authentication?.idToken;
 
     if (!idToken) {
       setError("Jeton Google introuvable");
@@ -43,6 +44,15 @@ export function useGoogleLogin() {
 
     (async () => {
       try {
+        // ── MODE API ──
+        if (USE_API) {
+          const user = await apiLoginWithGoogle(idToken);
+          setResult({ isNewUser: !user?.role });
+          setLoading(false);
+          return;
+        }
+
+        // ── MODE FIREBASE ──
         const credential = GoogleAuthProvider.credential(idToken);
         const userCred   = await signInWithCredential(auth, credential);
         const user       = userCred.user;
@@ -67,8 +77,8 @@ export function useGoogleLogin() {
           setResult({ isNewUser: !snap.data()?.role });
         }
       } catch (e) {
-        console.log("[google] error:", e?.code, e?.message);
-        setError("Erreur de connexion Google");
+        console.log("[google]", e?.status, e?.code, e?.message);
+        setError(e?.message || "Erreur de connexion Google");
       }
       setLoading(false);
     })();
