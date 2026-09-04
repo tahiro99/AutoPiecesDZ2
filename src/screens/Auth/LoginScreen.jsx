@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { C } from "../../constants/theme";
 import Input from "../../components/Input";
 import Btn from "../../components/Btn";
-import { login, getErrorMessage } from "../../services/auth.service";
+import { login, getErrorMessage } from "../../services/auth";
 import { useLanguage } from "../../i18n/languagecontext";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../../config/firebase";

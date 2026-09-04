@@ -4,133 +4,185 @@ import { doc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { auth, db } from "../config/firebase";
 import { registerForPush, unregisterFromPush } from "../services/push.service";
+import { USE_API } from "../config/backend";
+import { restoreSession } from "../services/auth.api";
+import { onAuthChange } from "../services/authEvents";
+import { apiPost, loadTokens } from "../services/api.client";
 
 const AuthContext = createContext(null);
 const ROLE_KEY    = "@apz_role";
 const PROFILE_KEY = "@apz_profile";
 
-export function AuthProvider({ children }) {
-  const [user, setUser]         = useState(undefined);
-  const [profile, setProfile]   = useState(null);
-  const profileUnsubRef         = useRef(null);
-  const prevUidRef              = useRef(null);
+const hasStoredTokens = async () => {
+  const { accessToken, refreshToken } = await loadTokens();
+  return !!(accessToken || refreshToken);
+};
+
+// ══════════════ MODE API ══════════════
+function ApiAuthProvider({ children }) {
+  const [user, setUser]                 = useState(undefined);
+  const [profile, setProfile]           = useState(null);
+  const [profileReady, setProfileReady] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      let u = null;
+      try {
+        u = await restoreSession();
+      } catch (e) {}
+
+      setUser(u || null);
+      setProfile(u || null);
+
+      // Si des jetons existent mais qu'on n'a pas récupéré le profil,
+      // c'est une panne réseau — surtout ne pas conclure "pas de rôle".
+      const stored = await hasStoredTokens();
+      setProfileReady(!!u || !stored);
+    })();
+  }, []);
+
+  useEffect(() => {
+    return onAuthChange((u) => {
+      setUser(u || null);
+      setProfile(u || null);
+      setProfileReady(true);
+    });
+  }, []);
+
+  // Jeton FCM transmis à l'API après connexion
+  const uid = user?.id;
+  useEffect(() => {
+    if (!uid) return;
+    (async () => {
+      try {
+        const messaging = (await import("@react-native-firebase/messaging")).default;
+        const token = await messaging().getToken();
+        if (token) await apiPost("/me/fcm-token", { token });
+      } catch (e) {}
+    })();
+  }, [uid]);
+
+  const loading = user === undefined;
+
+  return (
+    <AuthContext.Provider
+      value={{ user: user ?? null, profile, profileReady, loading, setProfile }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+// ══════════════ MODE FIREBASE ══════════════
+function FirebaseAuthProvider({ children }) {
+  const [user, setUser]                 = useState(undefined);
+  const [profile, setProfile]           = useState(null);
+  const [profileReady, setProfileReady] = useState(false);
+  const profileUnsubRef = useRef(null);
+  const prevUidRef      = useRef(null);
 
   useEffect(() => {
     const authUnsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      // Nettoyer le listener précédent
       if (profileUnsubRef.current) {
         profileUnsubRef.current();
         profileUnsubRef.current = null;
       }
 
       if (!firebaseUser) {
-        // Retirer le token FCM de l'utilisateur qui se déconnecte
         if (prevUidRef.current) {
           unregisterFromPush(prevUidRef.current).catch(() => {});
           prevUidRef.current = null;
         }
         setUser(null);
         setProfile(null);
+        setProfileReady(true);
         return;
       }
 
       setUser(firebaseUser);
+      setProfileReady(false);
 
-      // Enregistrer ce device pour les notifications push (une fois par session)
       if (prevUidRef.current !== firebaseUser.uid) {
         prevUidRef.current = firebaseUser.uid;
         registerForPush(firebaseUser.uid).catch(() => {});
       }
 
-      // Charger cache uniquement si pas encore de profil (premier affichage)
-try {
-  const cached = await AsyncStorage.getItem(PROFILE_KEY + firebaseUser.uid);
-  if (cached) {
-    const parsed = JSON.parse(cached);
-    if (parsed.role) {
-      setProfile(parsed);
-    } else {
-      // Cache invalide (pas de role) — le supprimer pour éviter le flash
-      await AsyncStorage.removeItem(PROFILE_KEY + firebaseUser.uid).catch(() => {});
-    }
-  }
-} catch (_) {}
+      try {
+        const cached = await AsyncStorage.getItem(PROFILE_KEY + firebaseUser.uid);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.role) setProfile(parsed);
+          else await AsyncStorage.removeItem(PROFILE_KEY + firebaseUser.uid).catch(() => {});
+        }
+      } catch (_) {}
 
-      // Listener Firestore — toujours prioritaire sur le cache
       profileUnsubRef.current = onSnapshot(
         doc(db, "users", firebaseUser.uid),
+        { includeMetadataChanges: true },
         async (snap) => {
+          const fromCache = snap.metadata.fromCache;
+
           if (snap.exists()) {
             const data = snap.data();
-
-            // Toujours mettre à jour avec les données Firestore
             setProfile(data);
+            if (data.role) {
+              AsyncStorage.setItem(
+                PROFILE_KEY + firebaseUser.uid, JSON.stringify(data)
+              ).catch(() => {});
+            }
+            if (!fromCache) setProfileReady(true);
+            return;
+          }
 
-            // Mettre à jour le cache avec les données fraîches
+          // Doc absent depuis le cache : ne rien conclure
+          if (fromCache) return;
+
+          let existing = null;
+          const mail = (firebaseUser.email || "").toLowerCase();
+
+          if (mail) {
+            try {
+              const { getDocs, query: q, where, collection: coll, limit } =
+                await import("firebase/firestore");
+              let s = await getDocs(q(coll(db, "users"), where("email", "==", mail), limit(1)));
+              if (s.empty) {
+                s = await getDocs(q(coll(db, "users"), where("firebaseEmail", "==", mail), limit(1)));
+              }
+              if (!s.empty) existing = s.docs[0].data();
+            } catch (e) {
+              console.log("[AuthContext] recherche par e-mail:", e.message);
+            }
+          }
+
+          const roleStored = await AsyncStorage
+            .getItem(ROLE_KEY + firebaseUser.uid).catch(() => null);
+
+          const finalProfile = existing
+            ? { ...existing, uid: firebaseUser.uid }
+            : {
+                uid:         firebaseUser.uid,
+                email:       mail,
+                displayName: firebaseUser.displayName || mail.split("@")[0] || "Utilisateur",
+                role:        roleStored || null,
+                phone:       "",
+                wilaya:      "",
+                verified:    false,
+                createdAt:   serverTimestamp(),
+              };
+
+          setProfile(finalProfile);
+          await setDoc(doc(db, "users", firebaseUser.uid), finalProfile).catch(() => {});
+
+          if (finalProfile.role) {
             AsyncStorage.setItem(
-              PROFILE_KEY + firebaseUser.uid,
-              JSON.stringify(data)
+              PROFILE_KEY + firebaseUser.uid, JSON.stringify(finalProfile)
             ).catch(() => {});
+          }
 
-} else {
-  // Le doc n'existe pas pour cet UID — chercher par email d'abord
-  let existingProfile = null;
-  if (firebaseUser.email) {
-    try {
-      const { getDocs, query: q, where, collection: coll, limit } = await import("firebase/firestore");
-      const snap = await getDocs(
-        q(coll(db, "users"), where("email", "==", firebaseUser.email.toLowerCase()), limit(1))
-      );
-      if (!snap.empty) {
-        existingProfile = snap.docs[0].data();
-      } else {
-        // Aussi chercher par firebaseEmail
-        const snap2 = await getDocs(
-          q(coll(db, "users"), where("firebaseEmail", "==", firebaseUser.email.toLowerCase()), limit(1))
-        );
-        if (!snap2.empty) existingProfile = snap2.docs[0].data();
-      }
-    } catch (e) {
-      console.log("[AuthContext] search by email error:", e.message);
-    }
-  }
-
-  if (existingProfile) {
-    // Migrer le profil vers le nouvel UID
-    const migratedProfile = { ...existingProfile, uid: firebaseUser.uid };
-    setProfile(migratedProfile);
-    await setDoc(doc(db, "users", firebaseUser.uid), migratedProfile).catch(() => {});
-    AsyncStorage.setItem(
-      PROFILE_KEY + firebaseUser.uid,
-      JSON.stringify(migratedProfile)
-    ).catch(() => {});
-  } else {
-    // Vraiment nouveau user → créer profil vide
-    const roleStored = await AsyncStorage.getItem(ROLE_KEY + firebaseUser.uid).catch(() => null);
-    const newProfile = {
-      uid:         firebaseUser.uid,
-      email:       firebaseUser.email || "",
-      displayName: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "Utilisateur",
-      role:        roleStored || null,
-      phone:       "",
-      verified:    false,
-      createdAt:   serverTimestamp(),
-    };
-    setProfile(newProfile);
-    await setDoc(doc(db, "users", firebaseUser.uid), newProfile).catch(() => {});
-  }
-  // Ne PAS mettre en cache un profil sans role (évite le flash au reload)
-  if (newProfile.role) {
-    AsyncStorage.setItem(
-      PROFILE_KEY + firebaseUser.uid,
-      JSON.stringify(newProfile)
-    ).catch(() => {});
-  }
-}
+          setProfileReady(true);
         },
         (error) => {
-          console.log("[AuthContext] listener error:", error.message);
-          // En cas d'erreur réseau, garder le profil actuel
+          console.log("[AuthContext] listener:", error.message);
+          setProfileReady(true);
         }
       );
     });
@@ -144,10 +196,18 @@ try {
   const loading = user === undefined;
 
   return (
-    <AuthContext.Provider value={{ user: user ?? null, profile, loading, setProfile }}>
+    <AuthContext.Provider
+      value={{ user: user ?? null, profile, profileReady, loading, setProfile }}>
       {children}
     </AuthContext.Provider>
   );
+}
+
+// ══════════════ AIGUILLAGE ══════════════
+export function AuthProvider({ children }) {
+  return USE_API
+    ? <ApiAuthProvider>{children}</ApiAuthProvider>
+    : <FirebaseAuthProvider>{children}</FirebaseAuthProvider>;
 }
 
 export function useAuthContext() {

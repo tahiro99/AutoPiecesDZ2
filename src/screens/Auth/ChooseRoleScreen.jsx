@@ -3,19 +3,21 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, FlatList, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { doc, updateDoc } from "firebase/firestore";
-import { db } from "../../config/firebase";
+import { EmailAuthProvider, linkWithCredential } from "firebase/auth";
+import { db, auth } from "../../config/firebase";
 import { C } from "../../constants/theme";
 import Btn from "../../components/Btn";
 import { useLanguage } from "../../i18n/languagecontext";
 import { WILAYAS } from "../../constants/wilayas";
 import { useAuthContext } from "../../context/AuthContext";
 import { initVendorSubscription } from "../../services/subscription.service";
-import { EmailAuthProvider, linkWithCredential } from "firebase/auth";
-import { auth } from "../../config/firebase";
+import { USE_API } from "../../config/backend";
+import { apiPost, apiPatch } from "../../services/api.client";
 import { KeyboardAvoidingView, Platform } from "react-native";
 export default function ChooseRoleScreen({ navigation }) {
   const { t, isRTL } = useLanguage();
-  const { user } = useAuthContext();
+ 
+    const { user, setProfile } = useAuthContext();
   const [role, setRole] = useState("client");
   const [phone, setPhone] = useState("");
   const [wilaya, setWilaya] = useState("");
@@ -32,41 +34,65 @@ const [confirmPassword, setConfirmPassword] = useState("");
   const filtered = WILAYAS.filter(w => w.toLowerCase().includes(wilayaSearch.toLowerCase()));
 
   const handleContinue = async () => {
-  if (!phone.trim()) { setError(isRTL ? "رقم الهاتف مطلوب" : "Téléphone requis"); return; }
-  if (!wilaya) { setError(isRTL ? "اختر الولاية" : "Choisissez votre wilaya"); return; }
-  if (!user?.email && !email.trim()) { setError(isRTL ? "البريد مطلوب" : "Email requis"); return; }
-  if (email && !email.includes("@")) { setError(isRTL ? "بريد غير صالح" : "Email invalide"); return; }
-  if (password.length < 6) { setError(isRTL ? "6 أحرف على الأقل" : "Mot de passe min. 6 caractères"); return; }
-  if (password !== confirmPassword) { setError(isRTL ? "غير متطابقتين" : "Mots de passe différents"); return; }
+    if (!phone.trim()) { setError(isRTL ? "رقم الهاتف مطلوب" : "Téléphone requis"); return; }
+    if (!wilaya)       { setError(isRTL ? "اختر الولاية" : "Choisissez votre wilaya"); return; }
 
-  setLoading(true);
-  try {
-    const userEmail = (user.email || email.trim()).toLowerCase();
-    
-    // Lier email + password au compte Facebook
-    const credential = EmailAuthProvider.credential(userEmail, password);
-    await linkWithCredential(auth.currentUser, credential);
-
-   await updateDoc(doc(db, "users", user.uid), {
-  role, 
-  phone: phone.trim(), 
-  wilaya,
-  email: userEmail,
-  firebaseEmail: userEmail,
-  displayName: user.displayName || email.split("@")[0] || "Utilisateur",  // ← Ajoute cette ligne
-});
-
-    if (role === "vendeur") await initVendorSubscription(user.uid);
-    navigation.reset({ index: 0, routes: [{ name: "Main" }] });
-  } catch (e) {
-    if (e.code === "auth/email-already-in-use") {
-      setError(isRTL ? "هذا البريد مستخدم" : "Email déjà utilisé");
-    } else {
-      setError(e.message);
+    // ── MODE API : le compte existe déjà, pas de mot de passe à créer ──
+    if (USE_API) {
+      setLoading(true);
+      try {
+        await apiPost("/me/role", { role });
+        const updated = await apiPatch("/me", { phone: phone.trim(), wilaya });
+        setProfile({ ...updated, role });
+        navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+      } catch (e) {
+        setError(e.status === 409
+          ? (isRTL ? "تم تحديد نوع الحساب مسبقًا" : "Rôle déjà défini")
+          : (e.message || "Erreur"));
+      }
+      setLoading(false);
+      return;
     }
-  }
-  setLoading(false);
-};
+
+    // ── MODE FIREBASE ──
+    if (!user?.email && !email.trim()) { setError(isRTL ? "البريد مطلوب" : "Email requis"); return; }
+    if (email && !email.includes("@")) { setError(isRTL ? "بريد غير صالح" : "Email invalide"); return; }
+    if (password.length < 6)           { setError(isRTL ? "6 أحرف على الأقل" : "Mot de passe min. 6 caractères"); return; }
+    if (password !== confirmPassword)  { setError(isRTL ? "غير متطابقتين" : "Mots de passe différents"); return; }
+
+    setLoading(true);
+    try {
+      const userEmail = (user.email || email.trim()).toLowerCase();
+
+      // Le compte peut déjà avoir un mot de passe lié : ce n'est pas une erreur
+      try {
+        const credential = EmailAuthProvider.credential(userEmail, password);
+        await linkWithCredential(auth.currentUser, credential);
+      } catch (e) {
+        if (e.code !== "auth/provider-already-linked" &&
+            e.code !== "auth/credential-already-in-use") throw e;
+      }
+
+      await updateDoc(doc(db, "users", user.uid), {
+        role,
+        phone: phone.trim(),
+        wilaya,
+        email: userEmail,
+        firebaseEmail: userEmail,
+        displayName: user.displayName || userEmail.split("@")[0] || "Utilisateur",
+      });
+
+      if (role === "vendeur") await initVendorSubscription(user.uid);
+      navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+    } catch (e) {
+      if (e.code === "auth/email-already-in-use") {
+        setError(isRTL ? "هذا البريد مستخدم" : "Email déjà utilisé");
+      } else {
+        setError(e.message);
+      }
+    }
+    setLoading(false);
+  };
 
 const roles = [
   { v: "client", label: isRTL ? "مشتري" : "Client", icon: "person-outline", desc: isRTL ? "بحث وشراء" : "Rechercher & acheter" },
@@ -119,8 +145,7 @@ const roles = [
   <Ionicons name="chevron-down" size={18} color={C.textDim} />
 </TouchableOpacity>
 
-{!user?.email && (
-  <>
+{!USE_API && !user?.email && (  <>
     <Text style={[s.label, { textAlign: align, marginTop: 14 }]}>Email</Text>
     <View style={s.inp}>
       <Ionicons name="mail-outline" size={18} color={C.textDim} />
@@ -129,6 +154,24 @@ const roles = [
         placeholderTextColor={C.textDim}
         value={email} onChangeText={setEmail} 
         keyboardType="email-address" autoCapitalize="none" />
+    </View>
+  </>
+  
+)}
+{!USE_API && (
+  <>
+    <Text style={[s.label, { textAlign: align, marginTop: 14 }]}>
+      {isRTL ? "كلمة المرور" : "Mot de passe"}
+    </Text>
+    <View style={s.inp}>
+      ...
+    </View>
+
+    <Text style={[s.label, { textAlign: align, marginTop: 14 }]}>
+      {isRTL ? "تأكيد كلمة المرور" : "Confirmer"}
+    </Text>
+    <View style={s.inp}>
+      ...
     </View>
   </>
 )}

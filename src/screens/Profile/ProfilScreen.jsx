@@ -14,7 +14,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { C } from "../../constants/theme";
 import { useCollection } from "../../hooks/useCollection";
 import { useAuthContext } from "../../context/AuthContext";
-import { logout } from "../../services/auth.service";
+import { logout } from "../../services/auth";
 import { auth, db } from "../../config/firebase";
 import {
   updatePassword, EmailAuthProvider, reauthenticateWithCredential,
