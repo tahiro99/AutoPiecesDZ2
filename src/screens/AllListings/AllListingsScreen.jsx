@@ -10,14 +10,20 @@ import Tag from "../../components/Tag";
 import Spinner from "../../components/Spinner";
 import { useLanguage } from "../../i18n/languagecontext";
 import { navigate as globalNavigate } from "../../navigation/navigationRef";
-
+import { useFocusEffect } from "@react-navigation/native";
 const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 export default function AllListingsScreen({ route, navigation }) {
   const { t, isRTL } = useLanguage();
   const { user }     = useAuthContext();
+   const userId = user?.uid || null;
   const { data: listings, loading } = useCollection("listings");
-  const { data: favDocs }           = useCollection("favorites");
+  const { data: favDocs, refresh: refreshFavs } = useCollection("favorites", {
+    filters: userId ? [["userId", "==", userId]] : [],
+    orderField: null,
+    max: 300,
+    enabled: !!userId,
+  });
   const [search, setSearch]         = useState("");
 
   // Optional: filter by sellerId if passed (for vendeur "mes annonces")
@@ -30,9 +36,7 @@ export default function AllListingsScreen({ route, navigation }) {
   const priceMax  = route.params?.priceMax  || null;
   const title    = route.params?.title    || t("recentListings");
 
-  const userId = user?.uid || null;
-  const favIds = userId ? (favDocs || []).filter((f) => f.userId === userId).map((f) => f.listingId) : [];
-
+  const favIds = (favDocs || []).map((f) => f.listingId || f.id);
   const filtered = (listings || [])
     .filter((l) => !sellerId  || l.sellerId   === sellerId)
     .filter((l) => !condition || l.condition   === condition)
@@ -43,12 +47,21 @@ export default function AllListingsScreen({ route, navigation }) {
     .filter((l) => !priceMax  || (l.price || 0) <= priceMax)
     .filter((l) => !search.trim() || l.title?.toLowerCase().includes(search.toLowerCase()));
 
-  const toggleFav = (listing) => {
-    if (!userId) { navigation.navigate("Login"); return; }
-    if (favIds.includes(listing.id)) removeFavorite(userId, listing.id).catch(console.log);
-    else addFavorite(userId, listing).catch(console.log);
+   const toggleFav = async (item) => {
+    if (!userId) { navigation.getParent()?.navigate("Login"); return; }
+    try {
+      if (favIds.includes(item.id)) await removeFavorite(userId, item.id);
+      else                          await addFavorite(userId, item);
+      refreshFavs?.();
+    } catch (e) { console.log(e); }
   };
 
+ 
+      useFocusEffect(
+    React.useCallback(() => {
+      refreshFavs?.();
+    }, [refreshFavs])
+  );
   return (
     <View style={s.container}>
       <ScreenHeader title={`${title} (${filtered.length})`} onBack={() => navigation.goBack()} />

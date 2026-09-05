@@ -15,13 +15,12 @@ export default function FavoritesScreen({ navigation }) {
   const { t, isRTL } = useLanguage();
   const USER_ID = user?.uid || "";
 
-  const { data: favDocs, loading } = useCollection("favorites", {
+   const { data: favDocs, loading, refresh } = useCollection("favorites", {
     filters: USER_ID ? [["userId", "==", USER_ID]] : [],
     orderField: null,
     max: 300,
     enabled: !!USER_ID,
   });
-
   const myFavs = favDocs || [];
 
   return (
@@ -39,7 +38,14 @@ export default function FavoritesScreen({ navigation }) {
                   ? <Image source={{ uri: item.listingImg }} style={s.imgPhoto} resizeMode="cover" />
                   : <Text style={s.imgLetter}>{(item.listingTitle || "P")[0].toUpperCase()}</Text>
                 }
-                <TouchableOpacity onPress={() => removeFavorite(USER_ID, item.listingId).catch(console.log)} style={s.removeBtn}>
+              <TouchableOpacity
+  onPress={async () => {
+    try {
+      await removeFavorite(USER_ID, item.listingId || item.id);
+      refresh?.();
+    } catch (e) { console.log(e); }
+  }}
+  style={s.removeBtn}>
                   <Ionicons name="heart" size={18} color={C.danger} />
                 </TouchableOpacity>
               </View>

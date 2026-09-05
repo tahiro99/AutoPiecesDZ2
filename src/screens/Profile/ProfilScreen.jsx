@@ -32,8 +32,14 @@ const WILAYAS_LIST = WILAYAS || [
 export default function ProfilScreen({ navigation }) {
   const { t, isRTL, lang, toggleLang } = useLanguage();
   const { user, profile, setProfile }  = useAuthContext();
+   const userId = user?.uid || null;
   const insets = useSafeAreaInsets();
-  const { data: favDocs }  = useCollection("favorites");
+const { data: favDocs, refresh: refreshFavs } = useCollection("favorites", {
+    filters: userId ? [["userId", "==", userId]] : [],
+    orderField: null,
+    max: 300,
+    enabled: !!userId,
+  });
   const { data: orders }   = useCollection("orders");
   const { data: listings } = useCollection("listings");
   const { data: ratings }  = useCollection("ratings");
@@ -51,7 +57,6 @@ export default function ProfilScreen({ navigation }) {
   const [pwConfirm, setPwConfirm]   = useState("");
   const [pwLoading, setPwLoading]   = useState(false);
 
-  const userId     = user?.uid || null;
   const myFavs     = (favDocs  || []).filter(f => f.userId   === userId);
   const myOrders   = (orders   || []).filter(o => o.buyerId  === userId);
   const myListings = (listings || []).filter(l => l.sellerId === userId);

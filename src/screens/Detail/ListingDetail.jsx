@@ -13,7 +13,7 @@ import { incrementViews, startConversation, addFavorite, removeFavorite } from "
 import { useCollection } from "../../hooks/useCollection";
 import { useLanguage } from "../../i18n/languagecontext";
 import ReportModal from "../../components/ReportModal";
-
+import { useFocusEffect } from "@react-navigation/native";
 export default function ListingDetail({ route, navigation }) {
   const { t, isRTL }        = useLanguage();
   const { width }           = useWindowDimensions();
@@ -32,7 +32,7 @@ export default function ListingDetail({ route, navigation }) {
   });
 
   // ── Mes favoris (filtré côté serveur) ──
-  const { data: favDocs } = useCollection("favorites", {
+    const { data: favDocs, refresh: refreshFavs } = useCollection("favorites", {
     filters: uid ? [["userId", "==", uid]] : [],
     orderField: null,
     max: 300,
@@ -119,14 +119,14 @@ export default function ListingDetail({ route, navigation }) {
   };
 
   // ── FAVORIS ──
-  const toggleFav = async () => {
+     const toggleFav = async () => {
     if (!user) { navigation.navigate("Login"); return; }
     try {
       if (isFav) await removeFavorite(uid, listing.id);
       else       await addFavorite(uid, listing);
-    } catch (e) {}
+      refreshFavs?.();
+    } catch (e) { console.log(e); }
   };
-
   const hasPhotos    = listing.photos?.length > 0;
   const conditionNew = listing.condition === "Neuf" || listing.condition === "جديد";
 

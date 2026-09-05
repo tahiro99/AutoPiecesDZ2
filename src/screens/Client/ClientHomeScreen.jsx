@@ -19,6 +19,7 @@ import { listingMatchesQuery } from "../../constants/partsAliases";
 import { CAR_BRANDS, CAR_MODELS } from "../../constants/carBrands";
 import { collection, getCountFromServer, query, where } from "firebase/firestore";
 import { db } from "../../config/firebase";
+import { useFocusEffect } from "@react-navigation/native";
 const RADIUS_KM = 30;
 
 // Marques + modèles importés depuis src/constants/carBrands.js (en haut)
@@ -45,7 +46,7 @@ function ListingCard({ item, isFav, onFav, onPress, distance }) {
           <Ionicons name={isFav ? "heart" : "heart-outline"} size={18}
             color={isFav ? C.danger : C.textMuted} />
         </TouchableOpacity>
-        {item.condition === "Neuf" && (
+               {(item.condition === "new" || item.condition === "Neuf") && (
           <View style={cs.newBadge}><Text style={cs.newTxt}>NEUF</Text></View>
         )}
         {distance != null && (
@@ -77,7 +78,7 @@ export default function ClientHomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { user, profile }           = useAuthContext();
   const { data: listings, loading } = useCollection("listings");
-  const { data: favDocs }           = useCollection("favorites");
+
 
   const [search, setSearch]         = useState("");
   const [activeCat, setActiveCat]   = useState(null);
@@ -126,11 +127,16 @@ useEffect(() => {
     filterGearbox, filterFuel,
     (filterYearFrom || filterYearTo) ? "year" : null,
   ].filter(Boolean).length;
+    const userId = user?.uid || null;
 
-  const userId = user?.uid || null;
-  const favIds = userId
-    ? (favDocs || []).filter((f) => f.userId === userId).map((f) => f.listingId)
-    : [];
+  const { data: favDocs, refresh: refreshFavs } = useCollection("favorites", {
+    filters: userId ? [["userId", "==", userId]] : [],
+    orderField: null,
+    max: 300,
+    enabled: !!userId,
+  });
+
+  const favIds = (favDocs || []).map((f) => f.listingId || f.id);
 
   const fetchLocation = async () => {
     setLocLoading(true);
@@ -151,17 +157,25 @@ useEffect(() => {
       ? getDistance(userLat, userLng, l.lat, l.lng) : null,
   }));
 
-  const toggleFav = (item) => {
+    const toggleFav = async (item) => {
     if (!userId) { navigation.getParent()?.navigate("Login"); return; }
-    if (favIds.includes(item.id)) removeFavorite(userId, item.id).catch(console.log);
-    else addFavorite(userId, item).catch(console.log);
+    try {
+      if (favIds.includes(item.id)) await removeFavorite(userId, item.id);
+      else                          await addFavorite(userId, item);
+      refreshFavs?.();
+    } catch (e) { console.log(e); }
   };
-
+ 
+      useFocusEffect(
+    React.useCallback(() => {
+      refreshFavs?.();
+    }, [refreshFavs])
+  );
   const goToDetail = (item) =>
     navigation.getParent()?.navigate("ListingDetail", { listing: item });
 
   const all = withDistance(listings || []);
-
+  console.log(">>> première annonce id:", all?.[0]?.id);
   let filtered = all.filter((l) => {
     const matchQ   = listingMatchesQuery(l, search);   // FR + darija + arabe
     const matchCat = !activeCat || l.category === activeCat;
@@ -173,7 +187,7 @@ useEffect(() => {
     : [];
 
   const recent   = filtered.slice(0, 6);
-  const occasion = all.filter((l) => l.condition === "Occasion").slice(0, 5);
+    const occasion = all.filter((l) => l.condition === "used" || l.condition === "Occasion").slice(0, 5);
   const firstName = profile?.displayName?.split(" ")[0] || "";
 
   const handleApplyFilter = () => {

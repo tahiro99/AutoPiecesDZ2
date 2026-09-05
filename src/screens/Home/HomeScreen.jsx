@@ -13,6 +13,7 @@ import Tag from "../../components/Tag";
 import { useLanguage } from "../../i18n/languagecontext";
 import { collection, getCountFromServer, query, where } from "firebase/firestore";
 import { db } from "../../config/firebase";
+import { useFocusEffect } from "@react-navigation/native";
 function ListingCard({ listing, onPress, onFav, isFav, isRTL }) {
   const hasPhoto = listing.img?.startsWith("http");
   return (
@@ -49,8 +50,14 @@ function ListingCard({ listing, onPress, onFav, isFav, isRTL }) {
 export default function HomeScreen({ navigation }) {
   const { t, isRTL } = useLanguage();
   const { user, profile } = useAuthContext();
+   const userId = user?.uid || null;
   const { data: listings, loading } = useCollection("listings");
-  const { data: favDocs }           = useCollection("favorites");
+  const { data: favDocs, refresh: refreshFavs } = useCollection("favorites", {
+    filters: userId ? [["userId", "==", userId]] : [],
+    orderField: null,
+    max: 300,
+    enabled: !!userId,
+  });
   const [cat, setCat]               = useState(null);
   const [realStats, setRealStats] = useState({ listings: 0, vendeurs: 0 });
 
@@ -72,19 +79,19 @@ useEffect(() => {
   loadStats();
 }, []);
 
-  const userId = user?.uid || null;
-  const favIds = userId ? (favDocs || []).filter((f) => f.userId === userId).map((f) => f.listingId) : [];
+ 
+  const favIds = (favDocs || []).map((f) => f.listingId || f.id);
   const filtered = (listings || [])
     .filter((l) => l.sellerId === userId)
     .filter((l) => !cat || l.category === cat)
     .slice(0, 10);
 
-  const toggleFav = (listing) => {
-    if (!userId) { navigation.navigate("Login"); return; }
-    if (favIds.includes(listing.id)) removeFavorite(userId, listing.id).catch(console.log);
-    else addFavorite(userId, listing).catch(console.log);
-  };
-
+ 
+      useFocusEffect(
+    React.useCallback(() => {
+      refreshFavs?.();
+    }, [refreshFavs])
+  );
   const align = isRTL ? "right" : "left";
   const row   = isRTL ? "row-reverse" : "row";
 
