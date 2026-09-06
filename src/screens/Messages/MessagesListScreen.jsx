@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { C } from "../../constants/theme";
 import { useCollection } from "../../hooks/useCollection";
 import { useAuthContext } from "../../context/AuthContext";
@@ -8,14 +9,22 @@ import Spinner from "../../components/Spinner";
 import { useLanguage } from "../../i18n/languagecontext";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../config/firebase";
+import { USE_API } from "../../config/backend";
+
+const fmtTime = (v) => {
+  if (!v) return "";
+  const d = v.toDate ? v.toDate() : new Date(v);
+  return isNaN(d) ? "" : d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+};
 
 export default function MessagesListScreen({ navigation }) {
-const { user, profile } = useAuthContext();
+  const { t, isRTL } = useLanguage();
+  const { user, profile } = useAuthContext();
   const uid = user?.uid || null;
   const [userNames, setUserNames] = useState({});
 
-  const { data: convsRaw, loading } = useCollection("conversations", {
-    filters: uid ? [["participants", "array-contains", uid]] : [],
+  const { data: convsRaw, loading, refresh } = useCollection("conversations", {
+    filters: uid ? [["buyerId", "==", uid]] : [],
     orderField: "lastMessageAt",
     max: 100,
     enabled: !!uid,
@@ -24,10 +33,13 @@ const { user, profile } = useAuthContext();
   const myConvs = convsRaw || [];
   const total = myConvs.reduce((s, c) => s + (c.unread || 0), 0);
 
-  // Récupère les noms des utilisateurs manquants
+  useFocusEffect(useCallback(() => { refresh?.(); }, [refresh]));
+
+  // Firestore uniquement : compléter les noms manquants
   useEffect(() => {
+    if (USE_API) return;
     const isVendeur = profile?.role === "vendeur";
-    const missing = myConvs.filter(c => {
+    const missing = myConvs.filter((c) => {
       const name = isVendeur ? c.buyerName : c.sellerName;
       return !name && (isVendeur ? c.buyerId : c.sellerId);
     });
@@ -38,10 +50,7 @@ const { user, profile } = useAuthContext();
       try {
         const snap = await getDoc(doc(db, "users", otherId));
         if (snap.exists()) {
-          setUserNames(prev => ({
-            ...prev,
-            [otherId]: snap.data().displayName || "Utilisateur"
-          }));
+          setUserNames((prev) => ({ ...prev, [otherId]: snap.data().displayName || "Utilisateur" }));
         }
       } catch (e) {}
     });
@@ -56,7 +65,7 @@ const { user, profile } = useAuthContext();
         <View style={s.empty}>
           <Ionicons name="chatbubbles-outline" size={50} color={C.textDim} />
           <Text style={s.emptyTitle}>{t("loginRequired")}</Text>
-          <TouchableOpacity style={s.loginBtn} onPress={() => navigation.navigate("Login")}>
+          <TouchableOpacity style={s.loginBtn} onPress={() => navigation.getParent()?.navigate("Login")}>
             <Text style={s.loginTxt}>{t("login")}</Text>
           </TouchableOpacity>
         </View>
@@ -76,19 +85,21 @@ const { user, profile } = useAuthContext();
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
-            const isVendeur = profile?.role === "vendeur";
-            const otherId   = isVendeur ? item.buyerId : item.sellerId;
+            // Basé sur la conversation, pas sur le rôle du profil :
+            // un vendeur peut aussi être acheteur ailleurs.
+            const iAmSeller = item.sellerId === uid;
+            const otherId   = iAmSeller ? item.buyerId : item.sellerId;
 
-            // Nom depuis Firestore conversation → fallback depuis users collection
-            const otherName = isVendeur
-              ? (item.buyerName || userNames[otherId] || (isRTL ? "عميل" : "Client"))
-              : (item.sellerName || userNames[otherId] || (isRTL ? "بائع" : "Vendeur"));
+            const otherName = item.otherName
+              || (iAmSeller
+                    ? (item.buyerName  || userNames[otherId] || (isRTL ? "عميل" : "Client"))
+                    : (item.sellerName || userNames[otherId] || (isRTL ? "بائع" : "Vendeur")));
 
             return (
               <TouchableOpacity
                 style={[s.row, { flexDirection: isRTL ? "row-reverse" : "row" }]}
                 activeOpacity={0.8}
-                onPress={() => navigation.navigate("Chat", {
+                onPress={() => navigation.getParent()?.navigate("Chat", {
                   conversationId: item.id,
                   sellerName: otherName,
                   listingTitle: item.listingTitle,
@@ -102,11 +113,7 @@ const { user, profile } = useAuthContext();
                 <View style={s.content}>
                   <View style={[s.topRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
                     <Text style={[s.name, { textAlign: isRTL ? "right" : "left" }]}>{otherName}</Text>
-                    <Text style={s.time}>
-                      {item.lastMessageAt?.toDate
-                        ? item.lastMessageAt.toDate().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-                        : ""}
-                    </Text>
+                    <Text style={s.time}>{fmtTime(item.lastMessageAt)}</Text>
                   </View>
                   <Text style={[s.lastMsg, { textAlign: isRTL ? "right" : "left" }]} numberOfLines={1}>
                     {item.lastMessage || (isRTL ? "محادثة جديدة" : "Nouvelle conversation")}

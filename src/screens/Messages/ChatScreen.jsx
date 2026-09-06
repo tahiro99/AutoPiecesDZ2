@@ -168,9 +168,10 @@ const displayName = isMeSeller
 
   const renderMessage = ({ item }) => {
     const isMe = item.senderId === uid;
-    const time  = item.createdAt?.toDate
-      ? item.createdAt.toDate().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-      : "";
+       const d = item.createdAt?.toDate
+      ? item.createdAt.toDate()
+      : (item.createdAt ? new Date(item.createdAt) : null);
+    const time = d ? d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "";
 
     const isImage = item.type === "image" && item.imageUrl;
 

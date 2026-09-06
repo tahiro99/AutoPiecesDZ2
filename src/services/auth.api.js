@@ -56,6 +56,8 @@ export async function logout() {
   } catch (e) {}
   await clearTokens();
   await AsyncStorage.multiRemove(["@apz_profile", "@apz_role"]).catch(() => {});
+    const { disconnectSocket } = await import("./socket.client");
+  disconnectSocket();
   emitAuthChange(null);
 }
 
