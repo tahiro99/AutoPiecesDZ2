@@ -6,10 +6,11 @@ import { useLanguage } from "../../i18n/languagecontext";
 import { useTheme } from "../../context/themeContext";
 import { loginWithFacebook } from "../../services/facebook.service";
 import { db } from "../../config/firebase";
+
+
+import { useGoogleLogin } from "../../services/google.service";
 import { USE_API } from "../../config/backend";
 import { apiGet } from "../../services/api.client";
-import { useGoogleLogin } from "../../services/google.service";
-
 export default function WelcomeScreen({ navigation }) {
   const { t, isRTL, toggleLang, lang } = useLanguage();
   const [fbLoading, setFbLoading] = useState(false);

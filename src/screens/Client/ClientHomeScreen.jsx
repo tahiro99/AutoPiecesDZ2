@@ -17,9 +17,10 @@ import { WILAYAS } from "../../constants/wilayas";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { listingMatchesQuery } from "../../constants/partsAliases";
 import { CAR_BRANDS, CAR_MODELS } from "../../constants/carBrands";
-import { collection, getCountFromServer, query, where } from "firebase/firestore";
 import { db } from "../../config/firebase";
 import { useFocusEffect } from "@react-navigation/native";
+import { USE_API } from "../../config/backend";
+import { apiGet } from "../../services/api.client";
 const RADIUS_KM = 30;
 
 // Marques + modèles importés depuis src/constants/carBrands.js (en haut)
@@ -89,21 +90,27 @@ export default function ClientHomeScreen({ navigation }) {
   const [nearbyMode, setNearbyMode] = useState(false);
   const [realStats, setRealStats] = useState({ listings: 0, vendeurs: 0 });
 
-useEffect(() => {
-  const loadStats = async () => {
-    try {
-      const listingsSnap = await getCountFromServer(collection(db, "listings"));
-      const vendeursSnap = await getCountFromServer(
-        query(collection(db, "users"), where("role", "==", "vendeur"))
-      );
-      setRealStats({
-        listings: listingsSnap.data().count,
-        vendeurs: vendeursSnap.data().count,
-      });
-    } catch (e) {}
-  };
-  loadStats();
-}, []);
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        if (USE_API) {
+          const d = await apiGet("/listings/stats/counts");
+          setRealStats({ listings: d.listings, vendeurs: d.vendeurs });
+          return;
+        }
+        const { collection, getCountFromServer, query, where } = await import("firebase/firestore");
+        const listingsSnap = await getCountFromServer(collection(db, "listings"));
+        const vendeursSnap = await getCountFromServer(
+          query(collection(db, "users"), where("role", "==", "vendeur"))
+        );
+        setRealStats({
+          listings: listingsSnap.data().count,
+          vendeurs: vendeursSnap.data().count,
+        });
+      } catch (e) {}
+    };
+    loadStats();
+  }, []);
 
   // ── Filtres avancés ──
   const [filterCondition, setFilterCondition] = useState(null);
