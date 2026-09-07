@@ -6,6 +6,9 @@ import {
   addDoc, collection, getDocs, query, orderBy, limit
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import * as FileSystem from "expo-file-system/legacy";
+import { USE_API } from "../config/backend";
+import { apiPost, apiUpload } from "./api.client";
 
 // ── Plans d'abonnement vendeur ────────────────────────────────────────────────
 // Mensuel : 3500 DA chaque mois.
@@ -41,11 +44,16 @@ export const DEFAULT_PLAN = "monthly";
 // Conservé pour rétro-compatibilité dans le reste du code (= prix mensuel par défaut)
 export const SUBSCRIPTION_PRICE = PLANS.monthly.monthlyDA;
 
-export const TRIAL_MONTHS       = 2;
-export const CCP_NUMBER         = "0027890277 23"; // ← remplace par ton vrai CCP
+export const TRIAL_MONTHS = 2;
+export const CCP_NUMBER   = "0027890277 23";
+
+const STORAGE_BUCKET = "sustained-hold-486101-b9.firebasestorage.app";
 
 // ── Init trial au register vendeur ──────────────────────────────────────────
 export async function initVendorSubscription(userId) {
+  // En mode API, l'essai est créé côté serveur par POST /me/role
+  if (USE_API) return;
+
   try {
     const now      = new Date();
     const trialEnd = new Date(now);
@@ -62,7 +70,6 @@ export async function initVendorSubscription(userId) {
       },
     });
 
-    // Historique
     await addDoc(collection(db, "subscription_history"), {
       userId,
       action:    "trial_started",
@@ -78,9 +85,9 @@ export async function initVendorSubscription(userId) {
 export function getSubscriptionStatus(subscription) {
   if (!subscription) return "none";
   try {
-    const now = new Date();
+    const now    = new Date();
     const endRaw = subscription.currentPeriodEnd;
-const end = endRaw?.toDate ? endRaw.toDate() : new Date(endRaw);
+    const end    = endRaw?.toDate ? endRaw.toDate() : new Date(endRaw);
     if (isNaN(end.getTime())) return "expired";
     if (now < end) return subscription.status === "trial" ? "trial" : "active";
     return "expired";
@@ -93,9 +100,9 @@ const end = endRaw?.toDate ? endRaw.toDate() : new Date(endRaw);
 export function getDaysLeft(subscription) {
   if (!subscription) return 0;
   try {
-    const now = new Date();
-   const endRaw = subscription.currentPeriodEnd;
-const end = endRaw?.toDate ? endRaw.toDate() : new Date(endRaw);
+    const now    = new Date();
+    const endRaw = subscription.currentPeriodEnd;
+    const end    = endRaw?.toDate ? endRaw.toDate() : new Date(endRaw);
     if (isNaN(end.getTime())) return 0;
     return Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
   } catch (e) {
@@ -104,13 +111,15 @@ const end = endRaw?.toDate ? endRaw.toDate() : new Date(endRaw);
 }
 
 // ── Upload photo reçu CCP ─────────────────────────────────────────────────────
-import * as FileSystem from "expo-file-system/legacy";
-
-const STORAGE_BUCKET = "sustained-hold-486101-b9.firebasestorage.app";
-
 export async function uploadReceiptPhoto(userId, photoUri) {
+  // ── MODE API : le serveur compresse et convertit
+  if (USE_API) {
+    const { url } = await apiUpload(photoUri, "listing");
+    return url;
+  }
+
+  // ── MODE FIREBASE ──
   try {
-    // Compresse le reçu CCP avant l'upload (texte reste lisible à 1400px)
     const { compressImage } = await import("../util/compressImage");
     photoUri = await compressImage(photoUri, "receipt");
 
@@ -132,7 +141,6 @@ export async function uploadReceiptPhoto(userId, photoUri) {
 
     if (result.status !== 200) throw new Error(`Upload failed: ${result.status}`);
 
-    // Extract Firebase Storage download token so the returned URL is readable.
     let downloadToken = "";
     try {
       const meta = JSON.parse(result.body || "{}");
@@ -148,11 +156,23 @@ export async function uploadReceiptPhoto(userId, photoUri) {
 }
 
 // ── Demande de renouvellement avec photo ─────────────────────────────────────
-// planId : "monthly" | "yearly" (par défaut monthly pour rester compatible).
 export async function requestRenewal(userId, userName, userPhone, receiptUrl = null, planId = DEFAULT_PLAN) {
-  try {
-    const plan = PLANS[planId] || PLANS[DEFAULT_PLAN];
+  const plan = PLANS[planId] || PLANS[DEFAULT_PLAN];
 
+  // ── MODE API ──
+  if (USE_API) {
+    await apiPost("/me/subscription/renew", {
+      plan:       plan.id,
+      months:     plan.months,
+      amount:     plan.totalDA,
+      phone:      userPhone || "",
+      receiptUrl: receiptUrl || null,
+    });
+    return;
+  }
+
+  // ── MODE FIREBASE ──
+  try {
     await addDoc(collection(db, "subscription_requests"), {
       userId,
       userName,
@@ -162,11 +182,10 @@ export async function requestRenewal(userId, userName, userPhone, receiptUrl = n
       monthlyDA:  plan.monthlyDA,
       amount:     plan.totalDA,
       status:     "pending",
-      receiptUrl: receiptUrl || null,  // ← URL photo reçu
+      receiptUrl: receiptUrl || null,
       createdAt:  serverTimestamp(),
     });
 
-    // Historique
     await addDoc(collection(db, "subscription_history"), {
       userId,
       action:     "renewal_requested",
@@ -184,9 +203,11 @@ export async function requestRenewal(userId, userName, userPhone, receiptUrl = n
 
 // ── Envoyer notification expiration proche (7 jours) ─────────────────────────
 export async function sendExpiryWarningIfNeeded(userId, daysLeft) {
-  if (daysLeft !== 7) return; // seulement à J-7
+  // En mode API, la tâche planifiée du serveur s'en charge
+  if (USE_API) return;
+  if (daysLeft !== 7) return;
+
   try {
-    // Vérifie qu'on n'a pas déjà envoyé cette notification
     const snap = await getDocs(
       query(
         collection(db, "notifications", userId, "items"),
@@ -194,7 +215,7 @@ export async function sendExpiryWarningIfNeeded(userId, daysLeft) {
         limit(10)
       )
     );
-    const alreadySent = snap.docs.some(d => d.data().type === "subscription_warning");
+    const alreadySent = snap.docs.some((d) => d.data().type === "subscription_warning");
     if (alreadySent) return;
 
     await addDoc(collection(db, "notifications", userId, "items"), {

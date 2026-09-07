@@ -20,7 +20,7 @@ import { useLanguage } from "../../i18n/languagecontext";
 
 export default function SubscriptionScreen({ navigation }) {
   const { user, profile }          = useAuthContext();
-  const { status, daysLeft, isTrial } = useSubscription();
+  const { status, daysLeft, isTrial, isExpired } = useSubscription();
   const { isRTL }                  = useLanguage();
 
   const [loading, setLoading]       = useState(false);
@@ -30,7 +30,7 @@ export default function SubscriptionScreen({ navigation }) {
   const [planId, setPlanId]         = useState(DEFAULT_PLAN);
   const plan = PLANS[planId] || PLANS[DEFAULT_PLAN];
 
-  const isExpired = status === "expired";
+  
   const align = isRTL ? "right" : "left";
 
   useEffect(() => {
@@ -147,17 +147,23 @@ export default function SubscriptionScreen({ navigation }) {
             color={isExpired ? C.danger : C.warning}
           />
         </View>
-        <Text style={s.title}>
+               <Text style={s.title}>
           {isExpired
             ? (isRTL ? "انتهى اشتراكك" : "Abonnement expiré")
-            : (isRTL ? "الفترة التجريبية" : "Période d'essai")}
+            : isTrial
+              ? (isRTL ? "الفترة التجريبية" : "Période d'essai")
+              : (isRTL ? "اشتراك نشط" : "Abonnement actif")}
         </Text>
         <Text style={s.sub}>
           {isExpired
             ? (isRTL ? "جدد اشتراكك للمتابعة في البيع." : "Renouvelez votre abonnement pour continuer à vendre.")
-            : (isRTL
-                ? `متبقي ${daysLeft} يوم من الفترة التجريبية المجانية.`
-                : `Il vous reste ${daysLeft} jour${daysLeft > 1 ? "s" : ""} d'essai gratuit.`)}
+            : isTrial
+              ? (isRTL
+                  ? `متبقي ${daysLeft} يوم من الفترة التجريبية المجانية.`
+                  : `Il vous reste ${daysLeft} jour${daysLeft > 1 ? "s" : ""} d'essai gratuit.`)
+              : (isRTL
+                  ? `اشتراكك صالح لمدة ${daysLeft} يوم.`
+                  : `Votre abonnement est valide encore ${daysLeft} jour${daysLeft > 1 ? "s" : ""}.`)}
         </Text>
       </View>
 
