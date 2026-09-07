@@ -18,6 +18,9 @@ import Btn from "../../components/Btn";
 import MapPicker from "../../components/MapPicker";
 import { useLanguage } from "../../i18n/languagecontext";
 import { useSubscription } from "../../hooks/useSubscription";
+import { USE_API } from "../../config/backend";
+import { apiUpload } from "../../services/api.client";
+
 // Véhicules compatibles en Algérie
 const VEHICLES = [
   { brand: "Renault",  models: ["Symbol", "Clio II", "Clio III", "Clio IV", "Mégane II", "Mégane III", "Kangoo", "Logan", "Sandero", "Duster", "R19"] },
@@ -42,7 +45,7 @@ const INIT = {
   brand: "", model: "", year: "", wilaya: "Alger",
   condition: "Neuf", description: "",
   lat: null, lng: null,
-  compatibleVehicles: [], // [{ brand, model }]
+  compatibleVehicles: [],
 };
 
 const MAX_PHOTOS = 4;
@@ -57,9 +60,9 @@ export default function CreateListingScreen({ navigation }) {
   const [success, setSuccess]   = useState(false);
   const [error, setError]       = useState("");
   const [locating, setLocating] = useState(false);
-  const [showMap, setShowMap]         = useState(false);
-  const [selectedBrand, setSelectedBrand] = useState(null);
-  const [compatVehicles, setCompatVehicles] = useState([]); // [{ brand, model }]
+  const [showMap, setShowMap]   = useState(false);
+  const [selectedBrand, setSelectedBrand]   = useState(null);
+  const [compatVehicles, setCompatVehicles] = useState([]);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
@@ -128,26 +131,31 @@ export default function CreateListingScreen({ navigation }) {
     }
   };
 
-  // ── Upload via Firebase Storage REST API (100% compatible Hermes/Expo) ────
+  // ── Upload photo (API ou Firebase Storage) ────────────────────────────────
   const uploadPhoto = async (uri, index) => {
     try {
       if (!uri) throw new Error("URI manquante");
 
-      // CRITIQUE pour le scaling : compresse 5MB → 200-400KB avant upload
+      // ── MODE API ──
+      // Le serveur compresse, convertit en WebP et génère la vignette
+      if (USE_API) {
+        const { url } = await apiUpload(uri, "listing");
+        setPhotos((prev) =>
+          prev.map((p, i) => i === index ? { ...p, uploading: false, url } : p)
+        );
+        return;
+      }
+
+      // ── MODE FIREBASE ──
       const { compressImage } = await import("../../util/compressImage");
       uri = await compressImage(uri, "listing");
-
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      if (!base64) throw new Error("Fichier vide");
 
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error("Non connecté");
 
-      const filename = `listings/${user?.uid || "anon"}/${Date.now()}_${index}.jpg`;
+      const filename    = `listings/${user?.uid || "anon"}/${Date.now()}_${index}.jpg`;
       const encodedPath = encodeURIComponent(filename);
-      const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/sustained-hold-486101-b9.firebasestorage.app/o?uploadType=media&name=${encodedPath}`;
+      const uploadUrl   = `https://firebasestorage.googleapis.com/v0/b/sustained-hold-486101-b9.firebasestorage.app/o?uploadType=media&name=${encodedPath}`;
 
       const uploadResult = await FileSystem.uploadAsync(uploadUrl, uri, {
         httpMethod: "POST",
@@ -168,12 +176,11 @@ export default function CreateListingScreen({ navigation }) {
         prev.map((p, i) => i === index ? { ...p, uploading: false, url } : p)
       );
     } catch (e) {
-      console.log("[uploadPhoto] error:", e.message);
+      console.log("[uploadPhoto]", e?.status, e?.message);
       setPhotos((prev) =>
         prev.map((p, i) => i === index ? { ...p, uploading: false, error: true } : p)
       );
-      console.log("[upload photo]", e?.code, e?.message);
-      Alert.alert("Erreur upload", "Impossible d'envoyer la photo. Réessayez.");
+      Alert.alert("Erreur upload", e?.message || "Impossible d'envoyer la photo. Réessayez.");
     }
   };
 
@@ -189,8 +196,8 @@ export default function CreateListingScreen({ navigation }) {
   // ── Source photos (dialog) ────────────────────────────────────────────────
   const showPhotoOptions = () => {
     Alert.alert("Ajouter une photo", "Choisissez la source", [
-      { text: "📷 Prendre une photo",     onPress: takePhoto    },
-      { text: "🖼  Galerie",              onPress: pickImage    },
+      { text: "📷 Prendre une photo", onPress: takePhoto },
+      { text: "🖼  Galerie",          onPress: pickImage },
       { text: "Annuler", style: "cancel" },
     ]);
   };
@@ -218,9 +225,10 @@ export default function CreateListingScreen({ navigation }) {
 
   // ── Publier ───────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!form.title.trim())    { setError("Le titre est obligatoire");    return; }
-    if (!form.price)           { setError("Le prix est obligatoire");     return; }
-    if (!form.category)        { setError("La catégorie est obligatoire");return; }
+    if (!form.title.trim())    { setError("Le titre est obligatoire");     return; }
+    if (!form.price)           { setError("Le prix est obligatoire");      return; }
+    if (!form.category)        { setError("La catégorie est obligatoire"); return; }
+
     if (!form.lat || !form.lng) {
       Alert.alert(
         "Position requise",
@@ -232,45 +240,72 @@ export default function CreateListingScreen({ navigation }) {
       );
       return;
     }
-    const stillUploading = photos.some((p) => p.uploading);
-    if (stillUploading) {
+
+    if (photos.some((p) => p.uploading)) {
       Alert.alert("Patientez", "Les photos sont en cours d'upload...");
       return;
     }
-    setError(""); setSaving(true);
+
+    setError("");
+    setSaving(true);
+
     try {
-      const photoUrls = photos.filter((p) => p.url).map((p) => p.url);
+      const photoUrls  = photos.filter((p) => p.url).map((p) => p.url);
       const sellerName = profile?.displayName || user?.displayName || "Vendeur";
-      await addListing({
-        title:       form.title.trim(),
-        price:       parseInt(form.price) || 0,
-        stock:       parseInt(form.stock) || 1,
-        category:    form.category,
-        brand:       form.brand.trim(),
-        model:       form.model.trim(),
-        year:        form.year.trim(),
-        wilaya:      form.wilaya,
-        condition:   form.condition,
-        description: form.description.trim(),
-        img:         photoUrls[0] || CATEGORIES.find((c) => c.id === form.category)?.letter || "P",
-        photos:      photoUrls,
-        sellerName,
-        lat:         form.lat,
-        lng:         form.lng,
-        verified:          false,
-        rating:            0,
-        reviews:           0,
-        compatibleVehicles: compatVehicles,
-      }, user?.uid);
+
+      // Les puces d'état sont en français OU en arabe selon la langue
+      const isNeuf = form.condition === "Neuf" || form.condition === "جديد";
+
+      const payload = USE_API
+        ? {
+            title:       form.title.trim(),
+            price:       parseInt(form.price) || 0,
+            stock:       parseInt(form.stock) || 1,
+            condition:   isNeuf ? "new" : "used",
+            category:    form.category || null,
+            brand:       form.brand.trim() || null,
+            model:       form.model.trim() || null,
+            year:        form.year.trim() ? parseInt(form.year) : null,
+            wilaya:      form.wilaya || null,
+            description: form.description.trim(),
+            photos:      photoUrls,
+            lat:         form.lat ?? null,
+            lng:         form.lng ?? null,
+            compatibleVehicles: compatVehicles,
+          }
+        : {
+            title:       form.title.trim(),
+            price:       parseInt(form.price) || 0,
+            stock:       parseInt(form.stock) || 1,
+            category:    form.category,
+            brand:       form.brand.trim(),
+            model:       form.model.trim(),
+            year:        form.year.trim(),
+            wilaya:      form.wilaya,
+            condition:   form.condition,
+            description: form.description.trim(),
+            img:         photoUrls[0] || CATEGORIES.find((c) => c.id === form.category)?.letter || "P",
+            photos:      photoUrls,
+            sellerName,
+            lat:         form.lat,
+            lng:         form.lng,
+            verified:    false,
+            rating:      0,
+            reviews:     0,
+            compatibleVehicles: compatVehicles,
+          };
+
+      await addListing(payload, user?.uid);
       setSuccess(true);
     } catch (e) {
-      setError("Erreur lors de la publication");
-      console.log(e);
+      console.log("[publish]", e?.status, e?.message);
+      setError(e?.message || "Erreur lors de la publication");
     }
+
     setSaving(false);
   };
 
-  // ── BLOCAGE ABONNEMENT EXPIRÉ ──
+  // ── BLOCAGE ABONNEMENT EXPIRÉ ─────────────────────────────────────────────
   if (isExpired) {
     return (
       <View style={s.container}>
@@ -294,7 +329,7 @@ export default function CreateListingScreen({ navigation }) {
     );
   }
 
-  // ── SUCCÈS ─────────────────────────────────────────────────────────────────
+  // ── SUCCÈS ────────────────────────────────────────────────────────────────
   if (success) {
     return (
       <View style={s.container}>
@@ -424,7 +459,7 @@ export default function CreateListingScreen({ navigation }) {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.label}>MODÈLE</Text>
-            <TextInput style={s.input} placeholder={isRTL ? "208" : "208"} placeholderTextColor={C.textDim}
+            <TextInput style={s.input} placeholder="208" placeholderTextColor={C.textDim}
               value={form.model} onChangeText={(v) => set("model", v)} />
           </View>
         </View>
@@ -444,7 +479,7 @@ export default function CreateListingScreen({ navigation }) {
         <Text style={s.label}>WILAYA</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={s.chipRow}>
-       {WILAYAS.map((w) => (
+            {WILAYAS.map((w) => (
               <TouchableOpacity key={w} onPress={() => set("wilaya", w)}
                 style={[s.chip, form.wilaya === w && s.chipActive]}>
                 <Text style={[s.chipTxt, form.wilaya === w && { color: C.accent }]}>{w}</Text>
