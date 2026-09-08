@@ -182,7 +182,7 @@ export default function ClientHomeScreen({ navigation }) {
     navigation.getParent()?.navigate("ListingDetail", { listing: item });
 
   const all = withDistance(listings || []);
-  console.log(">>> première annonce id:", all?.[0]?.id);
+  
   let filtered = all.filter((l) => {
     const matchQ   = listingMatchesQuery(l, search);   // FR + darija + arabe
     const matchCat = !activeCat || l.category === activeCat;

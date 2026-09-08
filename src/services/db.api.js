@@ -29,9 +29,9 @@ export async function markAsRead(conversationId) {
 export async function addFavorite(userId, listing) {
   try {
     await apiPost(`/favorites/${listing.id}`);
-    console.log(">>> favori ajouté:", listing.id);
+   
   } catch (e) {
-    console.log(">>> favori ECHEC:", e.status, e.message, "| id:", listing.id);
+   
     throw e;
   }
 }

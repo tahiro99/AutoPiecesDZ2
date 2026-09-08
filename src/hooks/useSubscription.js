@@ -34,7 +34,7 @@ export function useSubscription() {
       try {
         const d = await apiGet("/me/subscription");
                 
-        console.log(">>> abonnement:", JSON.stringify(d));
+        
         if (!cancelled) { setApiSub(d); setLoading(false); }
       } catch (e) {
         // En cas d'erreur réseau, ne pas bloquer le vendeur

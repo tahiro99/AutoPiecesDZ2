@@ -40,10 +40,24 @@ const { data: favDocs, refresh: refreshFavs } = useCollection("favorites", {
     max: 300,
     enabled: !!userId,
   });
-  const { data: orders }   = useCollection("orders");
-  const { data: listings } = useCollection("listings");
-  const { data: ratings }  = useCollection("ratings");
+    const { data: orders } = useCollection("orders", {
+    filters: userId ? [["buyerId", "==", userId]] : [],
+    max: 100,
+    enabled: !!userId,
+  });
 
+  const { data: listings } = useCollection("listings", {
+    filters: userId ? [["sellerId", "==", userId]] : [],
+    max: 200,
+    enabled: !!userId,
+  });
+
+  const { data: ratings } = useCollection("ratings", {
+    filters: userId ? [["sellerId", "==", userId]] : [],
+    max: 200,
+    enabled: !!userId,
+  });
+    console.log(">>> profil ratings:", ratings?.length, "userId:", userId);
   const [editing, setEditing]       = useState(false);
   const [editName, setEditName]     = useState("");
   const [editPhone, setEditPhone]   = useState("");
@@ -59,9 +73,9 @@ const { data: favDocs, refresh: refreshFavs } = useCollection("favorites", {
 
   const myFavs     = (favDocs  || []).filter(f => f.userId   === userId);
   const myOrders   = (orders   || []).filter(o => o.buyerId  === userId);
-  const myListings = (listings || []).filter(l => l.sellerId === userId);
+  const myListings = listings || [];
   const isVendeur  = profile?.role === "vendeur";
-  const myRatings  = (ratings  || []).filter(r => r.sellerId === userId);
+    const myRatings = ratings || [];
   const avgRating  = myRatings.length > 0
     ? (myRatings.reduce((s,r) => s+(r.stars||0), 0) / myRatings.length).toFixed(1)
     : null;

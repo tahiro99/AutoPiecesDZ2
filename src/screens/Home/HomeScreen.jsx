@@ -87,8 +87,7 @@ export default function HomeScreen({ navigation }) {
 
  
   const favIds = (favDocs || []).map((f) => f.listingId || f.id);
-  const filtered = (listings || [])
-    .filter((l) => l.sellerId === userId)
+   const filtered = (listings || [])
     .filter((l) => !cat || l.category === cat)
     .slice(0, 10);
 

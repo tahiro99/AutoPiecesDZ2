@@ -11,7 +11,7 @@ import Tag from "../../components/Tag";
 import Spinner from "../../components/Spinner";
 import { useLanguage } from "../../i18n/languagecontext";
 import ReportModal from "../../components/ReportModal"; // ← AJOUT
-
+import { rateOrder } from "../../services/db.service";
 const STATUS_C = { pending: C.warning, confirmed: C.info, shipped: C.accent, delivered: C.success, cancelled: C.danger };
 const STEPS = ["pending", "confirmed", "shipped", "delivered"];
 
@@ -43,31 +43,19 @@ function RatingModal({ visible, order, userId, onClose, isRTL, t }) {
       Alert.alert(isRTL ? "اختر تقييماً" : "Choisissez une note");
       return;
     }
-    setSaving(true);
+     setSaving(true);
     try {
-      await addDoc(collection(db, "ratings"), {
-        orderId:    order.id,
-        sellerId:   order.sellerId,
-        buyerId:    userId,
-        sellerName: order.sellerName,
-        buyerName:  order.buyerName || "",
-        listing:    order.listingTitle,
-        stars,
-        comment:    comment.trim(),
-        createdAt:  serverTimestamp(),
-      });
-      await updateDoc(doc(db, "orders", order.id), { rated: true });
-      // Notifier le vendeur de la nouvelle évaluation
+      await rateOrder(order.id, stars, comment.trim());
       Alert.alert(
         isRTL ? "شكراً!" : "Merci !",
         isRTL ? "تم إرسال تقييمك." : "Votre avis a été envoyé.",
         [{ text: "OK", onPress: onClose }]
       );
     } catch (e) {
-      console.log("[rating]", e?.code, e?.message);
+      console.log("[rating]", e?.status, e?.code, e?.message);
       Alert.alert(
         isRTL ? "خطأ" : "Erreur",
-        isRTL ? "تعذر إرسال التقييم. حاول مرة أخرى." : "Impossible d'envoyer la note. Réessayez."
+        e?.message || (isRTL ? "تعذر إرسال التقييم. حاول مرة أخرى." : "Impossible d'envoyer la note. Réessayez.")
       );
     }
     setSaving(false);

@@ -64,16 +64,16 @@ export async function logout() {
 // Remplace onAuthStateChanged : vérifie au démarrage si les jetons sont valides
 export async function restoreSession() {
   const { accessToken, refreshToken } = await loadTokens();
-  console.log(">>> restore | tokens:", !!accessToken, !!refreshToken);
+  
   if (!accessToken && !refreshToken) return null;
 
   try {
     const user = await apiGet("/auth/me");
-    console.log(">>> restore OK:", user?.displayName, user?.role);
+   
     await AsyncStorage.setItem("@apz_profile", JSON.stringify(user)).catch(() => {});
     return user;
   } catch (e) {
-    console.log(">>> restore ECHEC:", e.status, e.message);
+  
     if (e.status === 401) {
       await clearTokens();
       await AsyncStorage.removeItem("@apz_profile").catch(() => {});
