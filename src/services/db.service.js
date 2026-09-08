@@ -12,3 +12,7 @@ export const markAsRead        = impl.markAsRead;
 export const placeOrder        = impl.placeOrder;
 export const addFavorite       = impl.addFavorite;
 export const removeFavorite    = impl.removeFavorite;
+export const updateOrderStatus = impl.updateOrderStatus;
+export const deleteListing     = impl.deleteListing;
+export const updateListing     = impl.updateListing;
+export const rateOrder         = impl.rateOrder;

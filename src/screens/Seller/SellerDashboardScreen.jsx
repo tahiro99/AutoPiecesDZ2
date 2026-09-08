@@ -18,7 +18,7 @@ import Spinner from "../../components/Spinner";
 import SubscriptionBanner from "../../components/SubscriptionBanner";
 import { useSubscription } from "../../hooks/useSubscription";
 import { WILAYAS } from "../../constants/wilayas";
-
+import { updateOrderStatus, deleteListing, updateListing } from "../../services/db.service";
 const WILAYAS_LIST = WILAYAS || ["Alger","Oran","Constantine","Blida","Sétif","Annaba","Tlemcen","Batna"];
 
 const STATUS_COLORS = {
@@ -246,19 +246,18 @@ export default function SellerDashboardScreen({ navigation }) {
   const uid = user?.uid || "";
 
   // ── Filtrage CÔTÉ SERVEUR ──
-  const { data: listingsRaw, loading: loadL } = useCollection("listings", {
+   const { data: listingsRaw, loading: loadL, refresh: refreshListings } = useCollection("listings", {
     filters: uid ? [["sellerId", "==", uid]] : [],
     max: 200,
     enabled: !!uid,
   });
 
-  const { data: ordersRaw, loading: loadO } = useCollection("orders", {
+  const { data: ordersRaw, loading: loadO, refresh: refreshOrders } = useCollection("orders", {
     filters: uid ? [["sellerId", "==", uid]] : [],
     max: 200,
     enabled: !!uid,
   });
-
-  const { data: convsRaw } = useCollection("conversations", {
+  const { data: convsRaw, refresh: refreshConversations } = useCollection("conversations", {
     filters: uid ? [["participants", "array-contains", uid]] : [],
     orderField: "lastMessageAt",
     max: 100,
@@ -286,37 +285,29 @@ export default function SellerDashboardScreen({ navigation }) {
 
   const handleStatusChange = async (orderId, newStatus) => {
     try {
-      await updateDoc(doc(db, "orders", orderId), { status: newStatus });
-      const order = myOrders.find(o => o.id === orderId);
-      if (order?.buyerId && STATUS_NOTIF_BODY[newStatus]) {
-        createNotif(order.buyerId, {
-          type: "livraison",
-          title: "Commande mise à jour",
-          body: STATUS_NOTIF_BODY[newStatus],
-          data: { screen: "Orders" },
-        }).catch(() => {});
-      }
+      await updateOrderStatus(orderId, newStatus);
+      refreshOrders?.();
     } catch (e) {
-      Alert.alert("Erreur", "Impossible de mettre à jour la commande.");
+      Alert.alert("Erreur", e?.message || "Impossible de mettre à jour la commande.");
     }
   };
 
-  const handleArchive = order => {
+  const handleArchive = (order) => {
     Alert.alert("Archiver la commande", `Archiver "${order.listingTitle}" ?`, [
       { text: "Annuler", style: "cancel" },
       { text: "Archiver", onPress: async () => {
-        try { await updateDoc(doc(db, "orders", order.id), { status: "archived" }); }
-        catch (e) { Alert.alert("Erreur", "Impossible d'archiver."); }
+        try { await updateOrderStatus(order.id, "archived"); refreshOrders?.(); }
+        catch (e) { Alert.alert("Erreur", e?.message || "Impossible d'archiver."); }
       }},
     ]);
   };
 
-  const handleDeleteListing = listing => {
+  const handleDeleteListing = (listing) => {
     Alert.alert("Supprimer l'annonce", `Supprimer "${listing.title}" ?`, [
       { text: "Annuler", style: "cancel" },
       { text: "Supprimer", style: "destructive", onPress: async () => {
-        try { await deleteDoc(doc(db, "listings", listing.id)); }
-        catch (e) { Alert.alert("Erreur", "Impossible de supprimer"); }
+        try { await deleteListing(listing.id); refreshListings?.(); }
+        catch (e) { Alert.alert("Erreur", e?.message || "Impossible de supprimer"); }
       }},
     ]);
   };

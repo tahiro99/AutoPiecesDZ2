@@ -1,6 +1,6 @@
 import {
   collection, addDoc, updateDoc, doc, setDoc, deleteDoc,
-  serverTimestamp, increment, writeBatch, getDocs, query, where,
+  serverTimestamp, increment, writeBatch, getDoc, query, where,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
 
@@ -14,12 +14,33 @@ export async function incrementViews(listingId) {
   try { await updateDoc(doc(db, "listings", listingId), { views: increment(1) }); }
   catch (e) { console.log(e); }
 }
+export async function updateOrderStatus(orderId, status) {
+  await updateDoc(doc(db, "orders", orderId), { status });
+}
+
+export async function deleteListing(listingId) {
+  await deleteDoc(doc(db, "listings", listingId));
+}
+
+export async function updateListing(listingId, data) {
+  await updateDoc(doc(db, "listings", listingId), data);
+}
+
+export async function rateOrder(orderId, stars, comment = "") {
+  const o = await getDoc(doc(db, "orders", orderId));
+  const d = o.data() || {};
+  await addDoc(collection(db, "ratings"), {
+    orderId, sellerId: d.sellerId, buyerId: d.buyerId,
+    stars, comment, createdAt: serverTimestamp(),
+  });
+  await updateDoc(doc(db, "orders", orderId), { rated: true });
+}
 
 // ─── MESSAGES ───────────────────────────────────────────────
 export async function startConversation(listing, buyerId, buyerName = "") {
-  const ex = await getDocs(query(collection(db, "conversations"),
+  const ex = await getDoc(query(collection(db, "conversations"),
     where("listingId", "==", listing.id), where("buyerId", "==", buyerId)));
-  if (!ex.empty) return ex.docs[0].id;
+  if (ex.exists()) return ex.id;
   return { pending: true, listing, buyerId, buyerName };
 }
 

@@ -35,6 +35,21 @@ export async function addFavorite(userId, listing) {
     throw e;
   }
 }
+export async function updateOrderStatus(orderId, status) {
+  await apiPatch(`/orders/${orderId}/status`, { status });
+}
+
+export async function deleteListing(listingId) {
+  await apiDelete(`/listings/${listingId}`);
+}
+
+export async function updateListing(listingId, data) {
+  return await apiPatch(`/listings/${listingId}`, data);
+}
+
+export async function rateOrder(orderId, stars, comment = "") {
+  await apiPost(`/orders/${orderId}/rate`, { stars, comment });
+}
 
 export async function placeOrder(
   cartItems, buyerId, address, wilaya, paymentMethod,
