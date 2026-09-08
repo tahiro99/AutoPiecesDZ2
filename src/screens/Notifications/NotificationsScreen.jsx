@@ -25,13 +25,21 @@ function getCats(isRTL) {
 
 function timeAgo(date, isRTL) {
   if (!date) return "";
-  const s = Math.floor((Date.now() - date) / 1000);
+
+  // Accepte : millisecondes (Firestore), chaîne ISO (API), objet Date
+  const ms = typeof date === "number"
+    ? date
+    : (date?.toMillis?.() ?? new Date(date).getTime());
+
+  if (!Number.isFinite(ms)) return "";
+
+  const s = Math.floor((Date.now() - ms) / 1000);
+  if (s < 0)     return isRTL ? "الآن" : "À l'instant";
   if (s < 60)    return isRTL ? "الآن" : "À l'instant";
-  if (s < 3600)  return isRTL ? `منذ ${Math.floor(s / 60)} د`  : `Il y a ${Math.floor(s / 60)}min`;
+  if (s < 3600)  return isRTL ? `منذ ${Math.floor(s / 60)} د`   : `Il y a ${Math.floor(s / 60)}min`;
   if (s < 86400) return isRTL ? `منذ ${Math.floor(s / 3600)} س` : `Il y a ${Math.floor(s / 3600)}h`;
   return isRTL ? `منذ ${Math.floor(s / 86400)} ي` : `Il y a ${Math.floor(s / 86400)}j`;
 }
-
 export default function NotificationsScreen({ navigation }) {
   const { user }                    = useAuthContext();
   const { isRTL, t }                = useLanguage();
