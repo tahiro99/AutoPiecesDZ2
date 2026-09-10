@@ -16,3 +16,6 @@ export const updateOrderStatus = impl.updateOrderStatus;
 export const deleteListing     = impl.deleteListing;
 export const updateListing     = impl.updateListing;
 export const rateOrder         = impl.rateOrder;
+export const blockUser   = impl.blockUser;
+export const unblockUser = impl.unblockUser;
+export const reportUser  = impl.reportUser;

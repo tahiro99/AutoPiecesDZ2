@@ -60,7 +60,12 @@ export async function logout() {
   disconnectSocket();
   emitAuthChange(null);
 }
-
+export async function loginWithFacebook(accessToken) {
+  const d = await apiPost("/auth/facebook", { accessToken });
+  await saveTokens(d.accessToken, d.refreshToken);
+  emitAuthChange(d.user);
+  return d.user;
+}
 // Remplace onAuthStateChanged : vérifie au démarrage si les jetons sont valides
 export async function restoreSession() {
   const { accessToken, refreshToken } = await loadTokens();

@@ -50,7 +50,17 @@ export async function updateListing(listingId, data) {
 export async function rateOrder(orderId, stars, comment = "") {
   await apiPost(`/orders/${orderId}/rate`, { stars, comment });
 }
+export async function blockUser(targetUserId) {
+  await apiPost(`/users/${targetUserId}/block`);
+}
 
+export async function unblockUser(targetUserId) {
+  await apiDelete(`/users/${targetUserId}/block`);
+}
+
+export async function reportUser(targetUserId, reason, targetListingId = null) {
+  await apiPost("/reports", { targetUserId, targetListingId, reason });
+}
 export async function placeOrder(
   cartItems, buyerId, address, wilaya, paymentMethod,
   buyerPhone = "", buyerName = "", buyerEmail = "", deliveryFee = 0
@@ -63,5 +73,6 @@ export async function placeOrder(
       deliveryFee: Number(deliveryFee) || 0,
     })
   ));
+  
   
 }

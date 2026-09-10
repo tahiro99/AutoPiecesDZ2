@@ -3,7 +3,27 @@ import {
   serverTimestamp, increment, writeBatch, getDoc, query, where,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
+import { arrayUnion, arrayRemove } from "firebase/firestore";
 
+export async function blockUser(targetUserId) {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error("Non connecté");
+  await updateDoc(doc(db, "users", uid), { blockedUsers: arrayUnion(targetUserId) });
+}
+
+export async function unblockUser(targetUserId) {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error("Non connecté");
+  await updateDoc(doc(db, "users", uid), { blockedUsers: arrayRemove(targetUserId) });
+}
+
+export async function reportUser(targetUserId, reason, targetListingId = null) {
+  const uid = auth.currentUser?.uid;
+  await addDoc(collection(db, "reports"), {
+    reporterId: uid, targetUserId, targetListingId,
+    reason, status: "open", createdAt: serverTimestamp(),
+  });
+}
 // ─── LISTINGS ───────────────────────────────────────────────
 export async function addListing(data, userId) {
   return await addDoc(collection(db, "listings"), {

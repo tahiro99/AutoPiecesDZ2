@@ -12,17 +12,16 @@ import { C } from "../../constants/theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMessages } from "../../hooks/useMessages";
 import { useAuthContext } from "../../context/AuthContext";
-import { sendMessage, markAsRead } from "../../services/db.service";
-import { createNotif } from "../../services/Notif.service";
-import { auth } from "../../config/firebase";
-import { addDoc, collection, serverTimestamp, updateDoc, doc } from "firebase/firestore";
-import { db } from "../../config/firebase";
+import { sendMessage, markAsRead, blockUser, unblockUser } from "../../services/db.service";
+import { auth, db } from "../../config/firebase";
+import { addDoc, collection, serverTimestamp, updateDoc, doc, onSnapshot } from "firebase/firestore";
 import { useLanguage } from "../../i18n/languagecontext";
-import { useCollection } from "../../hooks/useCollection";
+import { USE_API } from "../../config/backend";
+import { apiPost, apiUpload } from "../../services/api.client";
+
 const STORAGE_BUCKET = "sustained-hold-486101-b9.firebasestorage.app";
 
-async function uploadImage(uri, uid) {
-  // Compresse avant l'upload : 5MB → ~200KB (économies massives de bandwidth)
+async function uploadImageFirebase(uri, uid) {
   const { compressImage } = await import("../../util/compressImage");
   uri = await compressImage(uri, "chat");
 
@@ -30,6 +29,7 @@ async function uploadImage(uri, uid) {
   const filename = `chat/${uid}/${Date.now()}.jpg`;
   const encoded  = encodeURIComponent(filename);
   const url      = `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o?uploadType=media&name=${encoded}`;
+
   const res = await FileSystem.uploadAsync(url, uri, {
     httpMethod: "POST",
     uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
@@ -37,8 +37,6 @@ async function uploadImage(uri, uid) {
   });
   if (res.status !== 200) throw new Error("Upload failed");
 
-  // Firebase Storage returns metadata with `downloadTokens` — without it the
-  // public URL is rejected by default rules and the <Image> shows blank.
   let downloadToken = "";
   try {
     const meta = JSON.parse(res.body || "{}");
@@ -56,28 +54,76 @@ export default function ChatScreen({ route, navigation }) {
     conversationId: initialConvId, sellerName, listingTitle,
     listingPrice, sellerId, buyerId,
   } = route.params;
-// Déterminer le nom à afficher : si je suis le vendeur, montrer le nom du client
-const { data: convs } = useCollection("conversations");
-const currentConv = (convs || []).find(c => c.id === (initialConvId || convId));
-const isMeSeller = uid === (currentConv?.sellerId || sellerId);
-const displayName = isMeSeller 
-  ? (currentConv?.buyerName || "Client")
-  : (currentConv?.sellerName || sellerName || "Vendeur");
-  const { user }              = useAuthContext();
+
+  // ── DÉCLARATIONS D'ABORD ──
+  const { user, profile }     = useAuthContext();
   const [convId, setConvId]   = useState(initialConvId);
   const realConvId            = typeof convId === "string" ? convId : null;
-  const { messages, loading } = useMessages(realConvId);
-  const [text, setText]       = useState("");
-  const [sending, setSending] = useState(false);
-  const [viewerImg, setViewerImg] = useState(null);
-  const [uploadingImg, setUploadingImg] = useState(false);
-  const flatRef = useRef(null);
-  const uid = user?.uid || "guest";
+  const uid                   = user?.uid || "guest";
 
-  useEffect(() => { if (typeof convId === "string") markAsRead(convId).catch(() => {}); }, [convId]);
+  const { messages, loading }           = useMessages(realConvId);
+  const [text, setText]                 = useState("");
+  const [sending, setSending]           = useState(false);
+  const [viewerImg, setViewerImg]       = useState(null);
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [conv, setConv]                 = useState(null);
+  const flatRef = useRef(null);
+
+  // Un seul document écouté (mode Firebase uniquement)
+  useEffect(() => {
+    if (USE_API || !realConvId) return;
+    const unsub = onSnapshot(
+      doc(db, "conversations", realConvId),
+      (snap) => { if (snap.exists()) setConv({ id: snap.id, ...snap.data() }); },
+      (e) => console.log("[chat] conv:", e.message)
+    );
+    return () => unsub();
+  }, [realConvId]);
+
+  // Si je suis le vendeur, afficher le nom du client
+  const iAmSeller   = uid === (conv?.sellerId || sellerId);
+  const otherId     = iAmSeller ? (conv?.buyerId || buyerId) : (conv?.sellerId || sellerId);
+  const displayName = iAmSeller
+    ? (conv?.buyerName  || (isRTL ? "عميل" : "Client"))
+    : (conv?.sellerName || sellerName || (isRTL ? "بائع" : "Vendeur"));
+
+  const isBlocked = (profile?.blockedUsers || []).includes(otherId);
+
+  useEffect(() => { if (realConvId) markAsRead(realConvId).catch(() => {}); }, [realConvId]);
   useEffect(() => {
     if (messages.length > 0) setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
   }, [messages]);
+
+  // ── BLOQUER / DÉBLOQUER ──
+  const handleBlock = () => {
+    if (!otherId || otherId === uid) return;
+
+    Alert.alert(
+      isBlocked ? (isRTL ? "إلغاء الحظر" : "Débloquer") : (isRTL ? "حظر المستخدم" : "Bloquer cet utilisateur"),
+      isBlocked
+        ? (isRTL ? "سيتمكن من مراسلتك مجددًا." : "Il pourra à nouveau vous écrire.")
+        : (isRTL ? "لن يتمكن من مراسلتك بعد الآن." : "Il ne pourra plus vous contacter."),
+      [
+        { text: isRTL ? "إلغاء" : "Annuler", style: "cancel" },
+        {
+          text: isBlocked ? (isRTL ? "إلغاء الحظر" : "Débloquer") : (isRTL ? "حظر" : "Bloquer"),
+          style: isBlocked ? "default" : "destructive",
+          onPress: async () => {
+            try {
+              if (isBlocked) await unblockUser(otherId);
+              else           await blockUser(otherId);
+              Alert.alert("", isBlocked
+                ? (isRTL ? "تم إلغاء الحظر" : "Utilisateur débloqué")
+                : (isRTL ? "تم الحظر" : "Utilisateur bloqué"));
+              navigation.goBack();
+            } catch (e) {
+              Alert.alert("Erreur", e?.message || "Action impossible");
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // ── ENVOYER TEXTE ──
   const send = async () => {
@@ -86,17 +132,10 @@ const displayName = isMeSeller
     try {
       const newConvId = await sendMessage(convId, uid, text.trim());
       if (newConvId && newConvId !== convId) setConvId(newConvId);
-      const otherUserId = uid === sellerId ? buyerId : sellerId;
-      if (otherUserId) {
-        createNotif(otherUserId, {
-          type: "message",
-          title: isRTL ? "رسالة جديدة 💬" : "Nouveau message 💬",
-          body: text.trim().substring(0, 80),
-          data: { screen: "Chat", conversationId: newConvId || convId, sellerName, listingTitle, listingPrice },
-        }).catch(() => {});
-      }
       setText("");
-    } catch (e) { console.log(e); }
+    } catch (e) {
+      Alert.alert("Erreur", e?.message || "Message non envoyé");
+    }
     setSending(false);
   };
 
@@ -104,35 +143,31 @@ const displayName = isMeSeller
   const sendImage = async (uri) => {
     setUploadingImg(true);
     try {
-      const imageUrl = await uploadImage(uri, uid);
-      // Sauvegarder le message image dans Firestore
-      const msgData = {
-        senderId:  uid,
-        text:      "",
-        imageUrl,
-        type:      "image",
-        read:      false,
-        createdAt: serverTimestamp(),
-      };
+      // ── MODE API ──
+      if (USE_API) {
+        const { url } = await apiUpload(uri, "chat");
+        if (realConvId) {
+          await apiPost(`/conversations/${realConvId}/messages`, { imageUrl: url });
+        }
+        setUploadingImg(false);
+        return;
+      }
+
+      // ── MODE FIREBASE ──
+      const imageUrl = await uploadImageFirebase(uri, uid);
       if (realConvId) {
-        await addDoc(collection(db, "conversations", realConvId, "messages"), msgData);
+        await addDoc(collection(db, "conversations", realConvId, "messages"), {
+          senderId: uid, text: "", imageUrl, type: "image",
+          read: false, createdAt: serverTimestamp(),
+        });
         await updateDoc(doc(db, "conversations", realConvId), {
           lastMessage:   isRTL ? "📷 صورة" : "📷 Image",
           lastMessageAt: serverTimestamp(),
           unread:        1,
         });
       }
-      const otherUserId = uid === sellerId ? buyerId : sellerId;
-      if (otherUserId) {
-        createNotif(otherUserId, {
-          type:  "message",
-          title: isRTL ? "صورة جديدة 📷" : "Nouvelle image 📷",
-          body:  isRTL ? "أرسل لك صورة" : "Vous a envoyé une image",
-          data:  { screen: "Chat", conversationId: convId },
-        }).catch(() => {});
-      }
     } catch (e) {
-      Alert.alert("Erreur", isRTL ? "فشل إرسال الصورة" : "Impossible d'envoyer l'image");
+      Alert.alert("Erreur", e?.message || (isRTL ? "فشل إرسال الصورة" : "Impossible d'envoyer l'image"));
     }
     setUploadingImg(false);
   };
@@ -168,34 +203,22 @@ const displayName = isMeSeller
 
   const renderMessage = ({ item }) => {
     const isMe = item.senderId === uid;
-       const d = item.createdAt?.toDate
+    const d = item.createdAt?.toDate
       ? item.createdAt.toDate()
       : (item.createdAt ? new Date(item.createdAt) : null);
-    const time = d ? d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "";
+    const time = d && !isNaN(d) ? d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "";
 
     const isImage = item.type === "image" && item.imageUrl;
 
-    // Messenger-style: image messages have NO bubble background, just the
-    // rounded photo + a tiny timestamp below it.
     if (isImage) {
       return (
         <View style={[s.msgRow, isMe && s.msgRowMe]}>
           <View style={s.imgWrap}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => setViewerImg(item.imageUrl)}
-            >
-              <Image
-                source={{ uri: item.imageUrl }}
-                style={s.msgImage}
-                resizeMode="cover"
-              />
+            <TouchableOpacity activeOpacity={0.85} onPress={() => setViewerImg(item.imageUrl)}>
+              <Image source={{ uri: item.imageUrl }} style={s.msgImage} resizeMode="cover" />
             </TouchableOpacity>
             {item.text ? (
-              <Text
-                style={[s.imgCaption, { textAlign: isRTL ? "right" : "left" }]}
-                numberOfLines={3}
-              >
+              <Text style={[s.imgCaption, { textAlign: isRTL ? "right" : "left" }]} numberOfLines={3}>
                 {item.text}
               </Text>
             ) : null}
@@ -230,24 +253,23 @@ const displayName = isMeSeller
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
           <Ionicons name={isRTL ? "chevron-forward" : "chevron-back"} size={20} color={C.text} />
         </TouchableOpacity>
+
         <View style={[s.sellerInfo, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
           <View style={s.avatar}>
-            <Text style={s.avatarTxt}>{(sellerName || "?")[0].toUpperCase()}</Text>
+            <Text style={s.avatarTxt}>{(displayName || "?")[0].toUpperCase()}</Text>
           </View>
           <View>
-            <Text style={[s.sellerName, { textAlign: isRTL ? "right" : "left" }]}>{sellerName}</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.success }} />
-              <Text style={{ fontSize: 10, color: C.success, fontWeight: "700" }}>
-                {isRTL ? "متصل" : "En ligne"}
-              </Text>
-            </View>
+            <Text style={[s.sellerName, { textAlign: isRTL ? "right" : "left" }]}>{displayName}</Text>
+            <Text style={s.listingTitle} numberOfLines={1}>
+              {(listingTitle || "").substring(0, 24)}
+              {listingPrice ? ` · ${Number(listingPrice).toLocaleString()} DA` : ""}
+            </Text>
           </View>
         </View>
-        <View style={[s.listingBadge, { alignItems: isRTL ? "flex-start" : "flex-end" }]}>
-          <Text style={s.listingTitle} numberOfLines={1}>{(listingTitle || "").substring(0, 16)}</Text>
-          <Text style={s.listingPrice}>{(listingPrice || 0).toLocaleString()} DA</Text>
-        </View>
+
+        <TouchableOpacity onPress={handleBlock} style={s.backBtn}>
+          <Ionicons name="ellipsis-vertical" size={18} color={isBlocked ? C.danger : C.text} />
+        </TouchableOpacity>
       </View>
 
       {/* ── MESSAGES ── */}
@@ -269,59 +291,59 @@ const displayName = isMeSeller
       />
 
       {/* ── BARRE D'ENTRÉE ── */}
-      <View style={[s.inputBar, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-        {/* Bouton image */}
-        <TouchableOpacity onPress={pickImage} style={s.imgBtn} disabled={uploadingImg}>
-          {uploadingImg
-            ? <ActivityIndicator size="small" color={C.accent} />
-            : <Ionicons name="image-outline" size={22} color={C.accent} />
-          }
-        </TouchableOpacity>
+      {isBlocked ? (
+        <View style={s.blockedBar}>
+          <Ionicons name="ban-outline" size={16} color={C.danger} />
+          <Text style={s.blockedTxt}>
+            {isRTL ? "لقد حظرت هذا المستخدم" : "Vous avez bloqué cet utilisateur"}
+          </Text>
+          <TouchableOpacity onPress={handleBlock}>
+            <Text style={{ color: C.accent, fontWeight: "800", fontSize: 12 }}>
+              {isRTL ? "إلغاء" : "Débloquer"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={[s.inputBar, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+          <TouchableOpacity onPress={pickImage} style={s.imgBtn} disabled={uploadingImg}>
+            {uploadingImg
+              ? <ActivityIndicator size="small" color={C.accent} />
+              : <Ionicons name="image-outline" size={22} color={C.accent} />
+            }
+          </TouchableOpacity>
 
-        <TextInput
-          style={[s.input, { textAlign: isRTL ? "right" : "left" }]}
-          placeholder={t("writeMessage")}
-          placeholderTextColor={C.textDim}
-          value={text}
-          onChangeText={setText}
-          onSubmitEditing={send}
-          returnKeyType="send"
-          multiline
-        />
+          <TextInput
+            style={[s.input, { textAlign: isRTL ? "right" : "left" }]}
+            placeholder={t("writeMessage")}
+            placeholderTextColor={C.textDim}
+            value={text}
+            onChangeText={setText}
+            onSubmitEditing={send}
+            returnKeyType="send"
+            multiline
+          />
 
-        <TouchableOpacity
-          style={[s.sendBtn, (!text.trim() || sending) && s.sendBtnOff]}
-          onPress={send}
-          disabled={!text.trim() || sending}>
-          <Ionicons name="send" size={18} color={text.trim() ? "#000" : C.textDim} />
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[s.sendBtn, (!text.trim() || sending) && s.sendBtnOff]}
+            onPress={send}
+            disabled={!text.trim() || sending}>
+            <Ionicons name="send" size={18} color={text.trim() ? "#000" : C.textDim} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* ── Visionneuse plein écran ── */}
-      <Modal
-        visible={!!viewerImg}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setViewerImg(null)}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={s.viewerBg}
-          onPress={() => setViewerImg(null)}
-        >
+      <Modal visible={!!viewerImg} transparent animationType="fade"
+        onRequestClose={() => setViewerImg(null)}>
+        <TouchableOpacity activeOpacity={1} style={s.viewerBg} onPress={() => setViewerImg(null)}>
           <TouchableOpacity
             style={s.viewerClose}
             onPress={() => setViewerImg(null)}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
           {viewerImg ? (
-            <Image
-              source={{ uri: viewerImg }}
-              style={s.viewerImg}
-              resizeMode="contain"
-            />
+            <Image source={{ uri: viewerImg }} style={s.viewerImg} resizeMode="contain" />
           ) : null}
         </TouchableOpacity>
       </Modal>
@@ -337,9 +359,7 @@ const s = StyleSheet.create({
   avatar:       { width: 40, height: 40, borderRadius: 20, backgroundColor: C.accent + "20", borderWidth: 2, borderColor: C.accent, alignItems: "center", justifyContent: "center" },
   avatarTxt:    { fontSize: 16, fontWeight: "900", color: C.accent },
   sellerName:   { fontSize: 13, fontWeight: "800", color: C.text },
-  listingBadge: { backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: 8, padding: 6, maxWidth: 120 },
-  listingTitle: { fontSize: 9, color: C.textMuted },
-  listingPrice: { fontSize: 11, fontWeight: "800", color: C.accent },
+  listingTitle: { fontSize: 10, color: C.textMuted, marginTop: 2 },
   msgList:      { padding: 12, flexGrow: 1 },
   emptyChat:    { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 80 },
   msgRow:       { flexDirection: "row", justifyContent: "flex-start", marginBottom: 10 },
@@ -347,16 +367,14 @@ const s = StyleSheet.create({
   bubble:       { maxWidth: "78%", borderRadius: 16, padding: 10 },
   bubbleMe:     { backgroundColor: C.accent, borderBottomRightRadius: 4 },
   bubbleThem:   { backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderBottomLeftRadius: 4 },
-  // Messenger-style image bubble: no background, rounded photo, small caption
-  imgWrap:         { maxWidth: 200 },
-  msgImage:        { width: 200, height: 200, borderRadius: 18 },
-  imgCaption:      { fontSize: 13, color: C.text, marginTop: 6, lineHeight: 18 },
-  imgTime:         { fontSize: 10, color: C.textDim, marginTop: 4, alignSelf: "flex-start" },
-  imgTimeMe:       { alignSelf: "flex-end" },
-  // Fullscreen viewer
-  viewerBg:        { flex: 1, backgroundColor: "rgba(0,0,0,0.96)", alignItems: "center", justifyContent: "center" },
-  viewerClose:     { position: "absolute", top: 60, right: 20, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
-  viewerImg:       { width: Dimensions.get("window").width, height: Dimensions.get("window").height * 0.85 },
+  imgWrap:      { maxWidth: 200 },
+  msgImage:     { width: 200, height: 200, borderRadius: 18 },
+  imgCaption:   { fontSize: 13, color: C.text, marginTop: 6, lineHeight: 18 },
+  imgTime:      { fontSize: 10, color: C.textDim, marginTop: 4, alignSelf: "flex-start" },
+  imgTimeMe:    { alignSelf: "flex-end" },
+  viewerBg:     { flex: 1, backgroundColor: "rgba(0,0,0,0.96)", alignItems: "center", justifyContent: "center" },
+  viewerClose:  { position: "absolute", top: 60, right: 20, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
+  viewerImg:    { width: Dimensions.get("window").width, height: Dimensions.get("window").height * 0.85 },
   msgTxt:       { fontSize: 13, color: C.text, lineHeight: 18 },
   msgTxtMe:     { color: "#000" },
   msgTime:      { fontSize: 9, color: C.textMuted, marginTop: 4, textAlign: "right" },
@@ -365,4 +383,6 @@ const s = StyleSheet.create({
   input:        { flex: 1, backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, color: C.text, fontSize: 13, maxHeight: 100 },
   sendBtn:      { width: 42, height: 42, borderRadius: 12, backgroundColor: C.accent, alignItems: "center", justifyContent: "center" },
   sendBtnOff:   { backgroundColor: C.surfaceAlt },
+  blockedBar:   { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, padding: 16, backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.border },
+  blockedTxt:   { fontSize: 12, color: C.textMuted },
 });

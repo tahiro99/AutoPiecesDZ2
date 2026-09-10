@@ -4,8 +4,26 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../config/firebase";
 import { Platform } from "react-native";
 import * as Crypto from "expo-crypto";
+import { USE_API } from "../config/backend";
+import { loginWithFacebook as apiLoginWithFacebook } from "./auth.api";
 
 export async function loginWithFacebook() {
+
+    if (!data?.accessToken) throw new Error("Token Facebook introuvable");
+  // ══════════════ MODE API ══════════════
+  // Le serveur vérifie le jeton auprès de Facebook et crée sa propre session
+  if (USE_API) {
+    const result = await LoginManager.logInWithPermissions(["public_profile", "email"]);
+    if (result.isCancelled) throw new Error("Connexion annulée");
+
+    const data = await AccessToken.getCurrentAccessToken();
+    if (!data?.accessToken) throw new Error("Token Facebook introuvable");
+
+    const u = await apiLoginWithFacebook(data.accessToken);
+    return { uid: u.id, isNewUser: !u.role, user: u };
+  }
+
+  // ══════════════ MODE FIREBASE ══════════════
   let credential;
 
   if (Platform.OS === "ios") {
@@ -19,7 +37,7 @@ export async function loginWithFacebook() {
     const result = await LoginManager.logInWithPermissions(
       ["public_profile", "email"],
       "limited",
-      hashedNonce  // ← hash envoyé à Facebook
+      hashedNonce
     );
 
     if (result.isCancelled) throw new Error("Connexion annulée");
@@ -30,7 +48,7 @@ export async function loginWithFacebook() {
     const provider = new OAuthProvider("facebook.com");
     credential = provider.credential({
       idToken: authToken.authenticationToken,
-      rawNonce: rawNonce,  // ← nonce brut envoyé à Firebase
+      rawNonce: rawNonce,
     });
   } else {
     const result = await LoginManager.logInWithPermissions(["public_profile", "email"]);
