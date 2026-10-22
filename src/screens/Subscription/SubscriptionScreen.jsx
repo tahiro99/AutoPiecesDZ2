@@ -45,7 +45,6 @@ export default function SubscriptionScreen({ navigation }) {
     }
   }, []);
 
-  // ── Choisir photo reçu ──────────────────────────────────────────────────────
   const pickReceipt = async () => {
     const { status: perm } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm !== "granted") {
@@ -88,7 +87,6 @@ export default function SubscriptionScreen({ navigation }) {
     );
   };
 
-  // ── Envoyer demande ─────────────────────────────────────────────────────────
   const handleRequest = async () => {
     if (!user) return;
     if (!receiptUri) {
@@ -123,8 +121,6 @@ export default function SubscriptionScreen({ navigation }) {
       );
 } catch (e) {
       setUploading(false);
-      // ⚠️ Ne pas exposer les détails techniques à l'utilisateur final.
-      // Log côté dev console pour le debug, message générique à l'écran.
       console.log("[subscription request]", e?.code, e?.message);
       Alert.alert(
         isRTL ? "خطأ" : "Erreur",
@@ -384,7 +380,6 @@ const s = StyleSheet.create({
   stepDesc:        { fontSize: 12, color: C.textMuted, lineHeight: 18, marginBottom: 10 },
   ccpBox:          { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12 },
   ccpNumber:       { fontSize: 15, fontWeight: "900", color: C.accent, letterSpacing: 1 },
-  // ← Photo picker
   photoPickerBtn:  { borderWidth: 2, borderColor: C.accent + "50", borderStyle: "dashed", borderRadius: 12, padding: 20, alignItems: "center", gap: 8, backgroundColor: C.accent + "08" },
   photoPickerTxt:  { fontSize: 14, fontWeight: "700", color: C.accent },
   photoPickerSub:  { fontSize: 11, color: C.textDim },
@@ -392,7 +387,6 @@ const s = StyleSheet.create({
   receiptImg:      { width: "100%", height: 180 },
   changePhotoBtn:  { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, padding: 10, backgroundColor: C.surface },
   changePhotoTxt:  { fontSize: 13, color: C.accent, fontWeight: "600" },
-  // ← CTA
   cta:             { backgroundColor: C.accent, borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 8 },
   ctaDone:         { backgroundColor: C.success + "15", borderWidth: 1, borderColor: C.success + "30" },
   ctaDisabled:     { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
@@ -401,7 +395,6 @@ const s = StyleSheet.create({
   contactRow:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 12 },
   contactTxt:      { fontSize: 13, color: C.success, fontWeight: "600" },
 
-  // ── Plan picker ─────────────────────────────────────────────────────────
   sectionLabel:    { fontSize: 12, fontWeight: "800", color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
   plansRow:        { flexDirection: "row", gap: 10, marginBottom: 16 },
   planOpt:         { flex: 1, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, borderRadius: 16, padding: 14, position: "relative" },
