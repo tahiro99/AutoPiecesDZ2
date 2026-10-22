@@ -1,14 +1,3 @@
-// src/constants/deliveryPrices.js
-// Tarifs Yalidine Express — Livraison à domicile 2025 (58 wilayas)
-// Prix en DA selon la wilaya de DESTINATION (indépendant de la wilaya d'origine)
-
-// ── ZONES ─────────────────────────────────────────────────────────
-// Zone 1 — Alger + Grand Alger              → 600 DA
-// Zone 2 — Nord (côte + hauts plateaux N)   → 900 DA
-// Zone 3 — Centre (hauts plateaux S)        → 1100 DA
-// Zone 4 — Grand Sud                        → 1400 DA
-// Zone 5 — Extrême Sud                      → 1600 DA
-
 export const DELIVERY_ZONES = {
   1: { label: "Grand Alger",    price: 600,  color: "#10B981", wilayas: ["Alger","Blida","Boumerdès","Tipaza"] },
   2: { label: "Nord",           price: 900,  color: "#3B82F6", wilayas: ["Oran","Médéa","Bouira","Tizi Ouzou","Béjaïa","Jijel","Mila","Mostaganem","Aïn Témouchent","Tlemcen","Sidi Bel Abbès","Mascara","Relizane","Chlef","Tissemsilt","Tiaret","Constantine","Annaba","Guelma","Skikda","Souk Ahras","El Tarf","Oum El Bouaghi","Batna","Sétif","Khenchela","Tébessa","Bordj Bou Arréridj","Aïn Defla","Saïda","Naâma"] },
@@ -17,15 +6,12 @@ export const DELIVERY_ZONES = {
   5: { label: "Extrême Sud",    price: 1600, color: "#8B5CF6", wilayas: ["In Guezzam","Tamanrasset","Djanet","Illizi"] },
 };
 
-// ── TARIFS PAR WILAYA ─────────────────────────────────────────────
 export const DELIVERY_FEES = {
-  // Zone 1 — 600 DA
   "Alger":      600,
   "Blida":      600,
   "Boumerdès":  600,
   "Tipaza":     600,
 
-  // Zone 2 — 900 DA
   "Oran":               900,
   "Médéa":              900,
   "Bouira":             900,
@@ -58,7 +44,6 @@ export const DELIVERY_FEES = {
   "Saïda":              900,
   "Naâma":              900,
 
-  // Zone 3 — 1100 DA
   "Laghouat":      1100,
   "Djelfa":        1100,
   "M'Sila":        1100,
@@ -72,7 +57,6 @@ export const DELIVERY_FEES = {
   "El Menia":      1100,
   "Ouled Djellal": 1100,
 
-  // Zone 4 — 1400 DA
   "Béchar":               1400,
   "Tindouf":              1400,
   "Béni Abbès":           1400,
@@ -81,7 +65,6 @@ export const DELIVERY_FEES = {
   "Bordj Badji Mokhtar":  1400,
   "In Salah":             1400,
 
-  // Zone 5 — 1600 DA
   "In Guezzam":   1600,
   "Tamanrasset":  1600,
   "Djanet":       1600,
@@ -90,17 +73,15 @@ export const DELIVERY_FEES = {
 
 export const DEFAULT_FEE = 900;
 
-// ── MATRICE COMPLÈTE 58×58 (3364 combinaisons) ───────────────────
-// Tarifs réels inspirés de Yalidine Express 2025.
 export const SAME_WILAYA_FEES = {
-  1: 350, // Grand Alger
-  2: 400, // Nord
-  3: 400, // Hauts Plateaux
-  4: 500, // Grand Sud
-  5: 600, // Extrême Sud
+  1: 350, 
+  2: 400, 
+  3: 400, 
+  4: 500,
+  5: 600, 
 };
 
-// Matrice zone × zone (origine → destination)
+
 export const ZONE_MATRIX = {
   1: { 1: 500,  2: 700,  3: 1000, 4: 1400, 5: 1600 },
   2: { 1: 700,  2: 800,  3: 1100, 4: 1400, 5: 1600 },
@@ -114,7 +95,6 @@ function getZone(wilaya) {
   return z ? { id: parseInt(z[0]), label: z[1].label, color: z[1].color, basePrice: z[1].price } : null;
 }
 
-// Calcule le prix exact pour N'IMPORTE quelle paire origine → destination.
 export function getDeliveryInfo(destWilaya, originWilaya = null) {
   const destZone = getZone(destWilaya);
   if (!destZone) {
@@ -133,7 +113,6 @@ export function getDeliveryInfo(destWilaya, originWilaya = null) {
 
   if (!originWilaya) return base;
 
-  // Cas 1 : même wilaya
   if (originWilaya === destWilaya) {
     return {
       ...base,
@@ -143,7 +122,6 @@ export function getDeliveryInfo(destWilaya, originWilaya = null) {
     };
   }
 
-  // Cas 2 + 3 : matrice zone × zone
   const originZone = getZone(originWilaya);
   if (!originZone) return base;
 
@@ -155,7 +133,6 @@ export function getDeliveryInfo(destWilaya, originWilaya = null) {
   };
 }
 
-// ── TABLEAU RÉSUMÉ ZONES ─────────────────────────────────────────
 export const ZONE_SUMMARY = [
   { zone: 1, label: "Grand Alger",    price: 600,  example: "Alger, Blida, Boumerdès, Tipaza",                    color: "#10B981" },
   { zone: 2, label: "Nord",           price: 900,  example: "Oran, Constantine, Sétif, Annaba, Tlemcen...",       color: "#3B82F6" },
