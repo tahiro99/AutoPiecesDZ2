@@ -21,7 +21,6 @@ import { collection, getCountFromServer, query, where } from "firebase/firestore
 import { db } from "../../config/firebase";
 const RADIUS_KM = 30;
 
-// Marques + modèles importés depuis src/constants/carBrands.js (en haut)
 
 const PRICE_RANGES = [
   { label: "Moins de 5 000 DA", min: 0, max: 5000 },
@@ -31,7 +30,6 @@ const PRICE_RANGES = [
   { label: "Plus de 100 000 DA", min: 100000, max: null },
 ];
 
-// ── CARD ──────────────────────────────────────────────────────────────────────
 function ListingCard({ item, isFav, onFav, onPress, distance }) {
   return (
     <TouchableOpacity onPress={onPress} style={cs.card} activeOpacity={0.88}>
@@ -71,7 +69,6 @@ function ListingCard({ item, isFav, onFav, onPress, distance }) {
   );
 }
 
-// ── SCREEN ────────────────────────────────────────────────────────────────────
 export default function ClientHomeScreen({ navigation }) {
   const { t, isRTL } = useLanguage();
   const insets = useSafeAreaInsets();
@@ -113,9 +110,8 @@ useEffect(() => {
   const [filterPriceMin, setFilterPriceMin]   = useState("");
   const [filterPriceMax, setFilterPriceMax]   = useState("");
   const [filterCategory, setFilterCategory]   = useState(null);
-  // ── Filtres avancés (boîte, carburant, année, kilométrage) ──
-  const [filterGearbox, setFilterGearbox]     = useState(null); // "Manuelle" | "Automatique"
-  const [filterFuel, setFilterFuel]           = useState(null); // "Essence" | "Diesel" | "Hybride" | "Électrique" | "GPL"
+  const [filterGearbox, setFilterGearbox]     = useState(null); 
+  const [filterFuel, setFilterFuel]           = useState(null); 
   const [filterYearFrom, setFilterYearFrom]   = useState("");
   const [filterYearTo, setFilterYearTo]       = useState("");
 
@@ -186,7 +182,6 @@ useEffect(() => {
       category: filterCategory || undefined,
       priceMin: filterPriceRange ? filterPriceRange.min : (filterPriceMin ? parseInt(filterPriceMin) : undefined),
       priceMax: filterPriceRange ? filterPriceRange.max : (filterPriceMax ? parseInt(filterPriceMax) : undefined),
-      // Filtres avancés
       gearbox: filterGearbox || undefined,
       fuel: filterFuel || undefined,
       yearFrom: filterYearFrom ? parseInt(filterYearFrom) : undefined,
