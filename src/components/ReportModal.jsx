@@ -33,8 +33,6 @@ export default function ReportModal({ visible, onClose, targetUserId, targetUser
 
     setLoading(true);
     try {
-      // Write the report. A Cloud Function (notifyAdminOnReport) then notifies
-      // the admin automatically — no client-side admin write needed.
       await addDoc(collection(db, 'reports'), {
         reporterId:   user.uid,
         reporterName: user.displayName || user.email || 'Utilisateur',
