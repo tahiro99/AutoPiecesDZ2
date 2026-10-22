@@ -28,7 +28,6 @@ export default function CartScreen({ route, navigation }) {
   const [showZones, setShowZones] = useState(false);
 
   const item         = directBuy;
-  // Origin = where the listing is (seller's wilaya). Destination = buyer's selected wilaya.
   const deliveryInfo = getDeliveryInfo(wilaya, item?.wilaya);
   const deliveryFee  = deliveryInfo.price;
   const total        = (item?.price || 0) + deliveryFee;
@@ -41,10 +40,8 @@ export default function CartScreen({ route, navigation }) {
     const lat = item?.lat, lng = item?.lng;
     let url;
     if (lat != null && lng != null) {
-      // Itinéraire (directions) jusqu'à la position exacte du vendeur
       url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
     } else {
-      // Repli : recherche sur la wilaya si aucune coordonnée
       const query = encodeURIComponent(`${wilaya}, Algérie`);
       url = `https://www.google.com/maps/search/?api=1&query=${query}`;
     }
