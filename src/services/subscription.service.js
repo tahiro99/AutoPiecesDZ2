@@ -7,9 +7,6 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-// ── Plans d'abonnement vendeur ────────────────────────────────────────────────
-// Mensuel : 3500 DA chaque mois.
-// Annuel  : 2500 DA/mois facturé d'un coup pour 12 mois → 30000 DA, économie 12000 DA.
 export const PLANS = {
   monthly: {
     id:          "monthly",
@@ -25,12 +22,12 @@ export const PLANS = {
     id:          "yearly",
     months:      12,
     monthlyDA:   2500,
-    totalDA:     2500 * 12, // 30000
+    totalDA:     2500 * 12, 
     label:       "Annuel",
     labelAr:     "سنوي",
     description: "Facturé une fois pour 12 mois",
     descriptionAr: "دفعة واحدة لـ 12 شهر",
-    savingsDA:   (3500 - 2500) * 12, // 12000
+    savingsDA:   (3500 - 2500) * 12, 
     badge:       "Économie 12 000 DA",
     badgeAr:     "وفر 12 000 دج",
   },
@@ -38,12 +35,10 @@ export const PLANS = {
 
 export const DEFAULT_PLAN = "monthly";
 
-// Conservé pour rétro-compatibilité dans le reste du code (= prix mensuel par défaut)
 export const SUBSCRIPTION_PRICE = PLANS.monthly.monthlyDA;
 
 export const TRIAL_MONTHS       = 2;
-export const CCP_NUMBER         = "0027890277 23"; // ← remplace par ton vrai CCP
-
+export const CCP_NUMBER         = "*************"; 
 // ── Init trial au register vendeur ──────────────────────────────────────────
 export async function initVendorSubscription(userId) {
   try {
@@ -74,7 +69,6 @@ export async function initVendorSubscription(userId) {
   }
 }
 
-// ── Vérifier le statut ────────────────────────────────────────────────────────
 export function getSubscriptionStatus(subscription) {
   if (!subscription) return "none";
   try {
@@ -110,7 +104,6 @@ const STORAGE_BUCKET = "sustained-hold-486101-b9.firebasestorage.app";
 
 export async function uploadReceiptPhoto(userId, photoUri) {
   try {
-    // Compresse le reçu CCP avant l'upload (texte reste lisible à 1400px)
     const { compressImage } = await import("../util/compressImage");
     photoUri = await compressImage(photoUri, "receipt");
 
@@ -147,8 +140,6 @@ export async function uploadReceiptPhoto(userId, photoUri) {
   }
 }
 
-// ── Demande de renouvellement avec photo ─────────────────────────────────────
-// planId : "monthly" | "yearly" (par défaut monthly pour rester compatible).
 export async function requestRenewal(userId, userName, userPhone, receiptUrl = null, planId = DEFAULT_PLAN) {
   try {
     const plan = PLANS[planId] || PLANS[DEFAULT_PLAN];
@@ -162,7 +153,7 @@ export async function requestRenewal(userId, userName, userPhone, receiptUrl = n
       monthlyDA:  plan.monthlyDA,
       amount:     plan.totalDA,
       status:     "pending",
-      receiptUrl: receiptUrl || null,  // ← URL photo reçu
+      receiptUrl: receiptUrl || null, 
       createdAt:  serverTimestamp(),
     });
 
@@ -182,11 +173,9 @@ export async function requestRenewal(userId, userName, userPhone, receiptUrl = n
   }
 }
 
-// ── Envoyer notification expiration proche (7 jours) ─────────────────────────
 export async function sendExpiryWarningIfNeeded(userId, daysLeft) {
-  if (daysLeft !== 7) return; // seulement à J-7
+  if (daysLeft !== 7) return; 
   try {
-    // Vérifie qu'on n'a pas déjà envoyé cette notification
     const snap = await getDocs(
       query(
         collection(db, "notifications", userId, "items"),
@@ -199,7 +188,7 @@ export async function sendExpiryWarningIfNeeded(userId, daysLeft) {
 
     await addDoc(collection(db, "notifications", userId, "items"), {
       type:      "subscription_warning",
-      title:     "⚠️ Abonnement expire bientôt",
+      title:     " Abonnement expire bientôt",
       body:      `Votre abonnement expire dans ${daysLeft} jours. Renouvelez maintenant pour éviter l'interruption.`,
       createdAt: serverTimestamp(),
       read:      false,
