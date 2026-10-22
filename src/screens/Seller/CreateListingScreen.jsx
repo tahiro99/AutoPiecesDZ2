@@ -18,7 +18,6 @@ import Btn from "../../components/Btn";
 import MapPicker from "../../components/MapPicker";
 import { useLanguage } from "../../i18n/languagecontext";
 import { useSubscription } from "../../hooks/useSubscription";
-// Véhicules compatibles en Algérie
 const VEHICLES = [
   { brand: "Renault",  models: ["Symbol", "Clio II", "Clio III", "Clio IV", "Mégane II", "Mégane III", "Kangoo", "Logan", "Sandero", "Duster", "R19"] },
   { brand: "Peugeot",  models: ["206", "207", "208", "301", "307", "308", "405", "406", "Partner"] },
@@ -42,7 +41,7 @@ const INIT = {
   brand: "", model: "", year: "", wilaya: "Alger",
   condition: "Neuf", description: "",
   lat: null, lng: null,
-  compatibleVehicles: [], // [{ brand, model }]
+  compatibleVehicles: [], 
 };
 
 const MAX_PHOTOS = 4;
@@ -52,15 +51,14 @@ export default function CreateListingScreen({ navigation }) {
   const { user, profile } = useAuthContext();
   const { isExpired } = useSubscription();
   const [form, setForm]         = useState(INIT);
-  const [photos, setPhotos]     = useState([]);        // { uri, uploading, url }
+  const [photos, setPhotos]     = useState([]);      
   const [saving, setSaving]     = useState(false);
   const [success, setSuccess]   = useState(false);
   const [error, setError]       = useState("");
   const [locating, setLocating] = useState(false);
   const [showMap, setShowMap]         = useState(false);
   const [selectedBrand, setSelectedBrand] = useState(null);
-  const [compatVehicles, setCompatVehicles] = useState([]); // [{ brand, model }]
-
+  const [compatVehicles, setCompatVehicles] = useState([]); 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
   const toggleVehicle = (brand, model) => {
@@ -74,7 +72,6 @@ export default function CreateListingScreen({ navigation }) {
   const isVehicleSelected = (brand, model) =>
     compatVehicles.some((v) => v.brand === brand && v.model === model);
 
-  // ── Choisir photo depuis galerie ──────────────────────────────────────────
   const pickImage = async () => {
     if (photos.length >= MAX_PHOTOS) {
       Alert.alert("Maximum atteint", `Vous pouvez ajouter jusqu'à ${MAX_PHOTOS} photos.`);
@@ -102,7 +99,6 @@ export default function CreateListingScreen({ navigation }) {
     }
   };
 
-  // ── Prendre photo avec la caméra ──────────────────────────────────────────
   const takePhoto = async () => {
     if (photos.length >= MAX_PHOTOS) {
       Alert.alert("Maximum atteint", `Vous pouvez ajouter jusqu'à ${MAX_PHOTOS} photos.`);
@@ -128,12 +124,9 @@ export default function CreateListingScreen({ navigation }) {
     }
   };
 
-  // ── Upload via Firebase Storage REST API (100% compatible Hermes/Expo) ────
   const uploadPhoto = async (uri, index) => {
     try {
       if (!uri) throw new Error("URI manquante");
-
-      // CRITIQUE pour le scaling : compresse 5MB → 200-400KB avant upload
       const { compressImage } = await import("../../util/compressImage");
       uri = await compressImage(uri, "listing");
 
@@ -177,7 +170,6 @@ export default function CreateListingScreen({ navigation }) {
     }
   };
 
-  // ── Supprimer une photo ───────────────────────────────────────────────────
   const removePhoto = (index) => {
     Alert.alert("Supprimer", "Supprimer cette photo ?", [
       { text: "Annuler", style: "cancel" },
@@ -186,7 +178,6 @@ export default function CreateListingScreen({ navigation }) {
     ]);
   };
 
-  // ── Source photos (dialog) ────────────────────────────────────────────────
   const showPhotoOptions = () => {
     Alert.alert("Ajouter une photo", "Choisissez la source", [
       { text: "📷 Prendre une photo",     onPress: takePhoto    },
@@ -195,7 +186,6 @@ export default function CreateListingScreen({ navigation }) {
     ]);
   };
 
-  // ── GPS ───────────────────────────────────────────────────────────────────
   const handleGetLocation = async () => {
     setLocating(true);
     try {
@@ -216,7 +206,6 @@ export default function CreateListingScreen({ navigation }) {
     setLocating(false);
   };
 
-  // ── Publier ───────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!form.title.trim())    { setError("Le titre est obligatoire");    return; }
     if (!form.price)           { setError("Le prix est obligatoire");     return; }
@@ -294,7 +283,6 @@ export default function CreateListingScreen({ navigation }) {
     );
   }
 
-  // ── SUCCÈS ─────────────────────────────────────────────────────────────────
   if (success) {
     return (
       <View style={s.container}>
