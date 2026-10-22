@@ -21,7 +21,7 @@ export default function LivreurDashboardScreen() {
   const insets = useSafeAreaInsets();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("active"); // active | delivered | all
+  const [filter, setFilter] = useState("active"); 
   const [tracking, setTracking] = useState({});
 
   const load = useCallback(async () => {
