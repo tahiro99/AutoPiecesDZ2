@@ -31,15 +31,12 @@ export default function PhoneVerificationScreen({ route, navigation }) {
   const isVerifyingRef            = useRef(false);
 
   const formattedPhone = formatPhone(phone);
-  // Use the REAL email the user typed. This is what Firebase Auth registers,
-  // which means "Forgot password" works (Firebase sends the reset to this email).
   const firebaseEmail  = (email || "").trim().toLowerCase();
 
   const sendCode = async () => {
     if (sending) return;
     setSending(true);
     try {
-      // Envoie l'OTP via notre Cloud Function (passerelle SMS locale algérienne).
       const sendOtp = httpsCallable(functions, "sendOtp");
       await sendOtp({ phone: formattedPhone });
       setCodeSent(true);
@@ -94,7 +91,6 @@ export default function PhoneVerificationScreen({ route, navigation }) {
 
     } catch (e) {
       console.log("[verifyOtp]", e.code, e.message);
-      // Codes renvoyés par la Cloud Function (functions/deadline-exceeded = expiré)
       if (e.code === "functions/deadline-exceeded" || e.code === "functions/not-found") {
         setCodeSent(false); setConfirm(null); setCode("");
       }
