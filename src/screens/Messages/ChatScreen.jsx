@@ -22,7 +22,6 @@ import { useCollection } from "../../hooks/useCollection";
 const STORAGE_BUCKET = "sustained-hold-486101-b9.firebasestorage.app";
 
 async function uploadImage(uri, uid) {
-  // Compresse avant l'upload : 5MB → ~200KB (économies massives de bandwidth)
   const { compressImage } = await import("../../util/compressImage");
   uri = await compressImage(uri, "chat");
 
@@ -36,9 +35,6 @@ async function uploadImage(uri, uid) {
     headers: { "Content-Type": "image/jpeg", "Authorization": `Bearer ${token}` },
   });
   if (res.status !== 200) throw new Error("Upload failed");
-
-  // Firebase Storage returns metadata with `downloadTokens` — without it the
-  // public URL is rejected by default rules and the <Image> shows blank.
   let downloadToken = "";
   try {
     const meta = JSON.parse(res.body || "{}");
@@ -56,7 +52,6 @@ export default function ChatScreen({ route, navigation }) {
     conversationId: initialConvId, sellerName, listingTitle,
     listingPrice, sellerId, buyerId,
   } = route.params;
-// Déterminer le nom à afficher : si je suis le vendeur, montrer le nom du client
 const { data: convs } = useCollection("conversations");
 const currentConv = (convs || []).find(c => c.id === (initialConvId || convId));
 const isMeSeller = uid === (currentConv?.sellerId || sellerId);
@@ -79,7 +74,6 @@ const displayName = isMeSeller
     if (messages.length > 0) setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
   }, [messages]);
 
-  // ── ENVOYER TEXTE ──
   const send = async () => {
     if (!text.trim() || sending) return;
     setSending(true);
@@ -100,12 +94,10 @@ const displayName = isMeSeller
     setSending(false);
   };
 
-  // ── ENVOYER IMAGE ──
   const sendImage = async (uri) => {
     setUploadingImg(true);
     try {
       const imageUrl = await uploadImage(uri, uid);
-      // Sauvegarder le message image dans Firestore
       const msgData = {
         senderId:  uid,
         text:      "",
@@ -137,7 +129,6 @@ const displayName = isMeSeller
     setUploadingImg(false);
   };
 
-  // ── CHOISIR IMAGE ──
   const pickImage = () => {
     Alert.alert(
       isRTL ? "إرسال صورة" : "Envoyer une image",
@@ -173,9 +164,6 @@ const displayName = isMeSeller
       : "";
 
     const isImage = item.type === "image" && item.imageUrl;
-
-    // Messenger-style: image messages have NO bubble background, just the
-    // rounded photo + a tiny timestamp below it.
     if (isImage) {
       return (
         <View style={[s.msgRow, isMe && s.msgRowMe]}>
@@ -346,13 +334,12 @@ const s = StyleSheet.create({
   bubble:       { maxWidth: "78%", borderRadius: 16, padding: 10 },
   bubbleMe:     { backgroundColor: C.accent, borderBottomRightRadius: 4 },
   bubbleThem:   { backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderBottomLeftRadius: 4 },
-  // Messenger-style image bubble: no background, rounded photo, small caption
   imgWrap:         { maxWidth: 200 },
   msgImage:        { width: 200, height: 200, borderRadius: 18 },
   imgCaption:      { fontSize: 13, color: C.text, marginTop: 6, lineHeight: 18 },
   imgTime:         { fontSize: 10, color: C.textDim, marginTop: 4, alignSelf: "flex-start" },
   imgTimeMe:       { alignSelf: "flex-end" },
-  // Fullscreen viewer
+r
   viewerBg:        { flex: 1, backgroundColor: "rgba(0,0,0,0.96)", alignItems: "center", justifyContent: "center" },
   viewerClose:     { position: "absolute", top: 60, right: 20, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
   viewerImg:       { width: Dimensions.get("window").width, height: Dimensions.get("window").height * 0.85 },
