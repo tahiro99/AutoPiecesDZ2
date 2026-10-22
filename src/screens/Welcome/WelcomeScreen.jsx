@@ -14,7 +14,6 @@ export default function WelcomeScreen({ navigation }) {
   const [fbLoading, setFbLoading] = useState(false);
   const [realStats, setRealStats] = useState({ listings: 0, vendeurs: 0, wilayas: 58 });
 
-  // ── Google (expo-auth-session) ──
   const {
     loginWithGoogle,
     loading: gLoading,
@@ -54,7 +53,6 @@ export default function WelcomeScreen({ navigation }) {
           wilayas: 58,
         });
       } catch (e) {
-        // Silent fail, garde valeurs par défaut
       }
     };
     loadStats();
