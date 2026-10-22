@@ -1,5 +1,3 @@
-// Error Boundary global — capture les crashs React Native et les logge dans
-// Crashlytics. Sans ça, un crash quelque part = écran blanc et user perdu.
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import crashlytics from "@react-native-firebase/crashlytics";
@@ -16,7 +14,6 @@ export default class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Log to Crashlytics so you SEE crashes in production
     try {
       crashlytics().recordError(error);
       crashlytics().log("componentStack: " + (errorInfo?.componentStack || ""));
