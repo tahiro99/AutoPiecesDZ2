@@ -42,7 +42,6 @@ const getStatusLabels = (t) => ({
 
 const PAYMENT_LABELS = { cash: "Cash à la livraison", cib: "CIB", dahabia: "Dahabia CCP" };
 
-// ── ORDER CARD ────────────────────────────────────────────────────
 function OrderCard({ order, onStatusChange, onArchive, t }) {
   const [expanded, setExpanded] = useState(false);
   const statusColor  = STATUS_COLORS[order.status] || C.textDim;
@@ -119,7 +118,6 @@ function OrderCard({ order, onStatusChange, onArchive, t }) {
   );
 }
 
-// ── EDIT LISTING MODAL ────────────────────────────────────────────
 function EditListingModal({ listing, onClose, onSaved }) {
   const [title, setTitle]       = useState(listing?.title || "");
   const [price, setPrice]       = useState(String(listing?.price || ""));
@@ -240,7 +238,6 @@ function EditListingModal({ listing, onClose, onSaved }) {
   );
 }
 
-// ── MAIN SCREEN ───────────────────────────────────────────────────
 export default function SellerDashboardScreen({ navigation }) {
   const { t, isRTL } = useLanguage();
   const { isExpired, daysLeft, isTrial } = useSubscription();
@@ -301,7 +298,6 @@ export default function SellerDashboardScreen({ navigation }) {
     ]);
   };
 
-  // ── FIX: navigation vers CreateListing ──
   const goToCreate = () => {
     try {
       navigation.navigate("CreateListing");
