@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import { collection, onSnapshot, query, orderBy, limit as fbLimit } from "firebase/firestore";
 import { db } from "../config/firebase";
 
-// Default cap to avoid loading the entire collection into memory.
-// Override per-screen with the third argument when needed.
 const DEFAULT_LIMIT = 100;
 
 export function useCollection(collectionName, orderField = "createdAt", max = DEFAULT_LIMIT) {
