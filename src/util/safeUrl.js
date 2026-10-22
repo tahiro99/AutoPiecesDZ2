@@ -1,12 +1,10 @@
-// Defense-in-depth : valide qu'une URL d'image vient bien d'une source HTTPS
-// connue. Empêche l'injection de javascript:, file://, data: URIs et autres
-// schémas dangereux si un champ Firestore venait à être manipulé.
+
 
 const ALLOWED_HOSTS = [
   "firebasestorage.googleapis.com",
   "sustained-hold-486101-b9.firebasestorage.app",
-  "lh3.googleusercontent.com",      // Google profile photos
-  "graph.facebook.com",              // FB profile photos
+  "lh3.googleusercontent.com",      
+  "graph.facebook.com",              
 ];
 
 export function safeImageUrl(url) {
