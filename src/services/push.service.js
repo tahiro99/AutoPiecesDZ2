@@ -1,8 +1,4 @@
-// ─────────────────────────────────────────────────────────────
-// FCM push notifications (client side) — @react-native-firebase/messaging
-// Token registration + handlers. Sending is done by the Cloud Function
-// in /functions (triggered when createNotif writes a Firestore doc).
-// ─────────────────────────────────────────────────────────────
+
 import messaging from "@react-native-firebase/messaging";
 import { Platform, PermissionsAndroid } from "react-native";
 import {
@@ -11,12 +7,7 @@ import {
 import { db } from "../config/firebase";
 import { navigate } from "../navigation/navigationRef";
 
-// ── Background / quit handler ──────────────────────────────────
-// Must be registered at module scope (runs in the headless JS context).
-// When the message carries a `notification` block, the OS shows it
-// automatically — we only need to be present to receive data messages.
 messaging().setBackgroundMessageHandler(async () => {
-  // No-op: system tray handles display. Tap routing handled on open.
   return Promise.resolve();
 });
 
@@ -87,7 +78,6 @@ export async function registerForPush(userId) {
   }
 }
 
-// Call on logout — stop this device from receiving pushes for that user.
 export async function unregisterFromPush(userId) {
   try {
     if (tokenRefreshUnsub) {
@@ -105,7 +95,6 @@ export async function unregisterFromPush(userId) {
   }
 }
 
-// Map a notification's data payload → in-app navigation.
 export function routeFromData(data) {
   if (!data) return navigate("Notifications");
   switch (data.screen) {
