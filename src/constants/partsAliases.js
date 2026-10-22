@@ -1,10 +1,6 @@
-// src/constants/partsAliases.js
-// Dictionnaire de synonymes pièces auto — Marché algérien
-// Français officiel + Darija (marché/casse) + Arabe
-// Utilisé pour la recherche : un acheteur tape n'importe quel mot → trouve l'annonce
+
 
 export const PARTS_ALIASES = [
-  // ── 1. MOTEUR ──
   { fr: "Bloc moteur",          aliases: ["moteur complet","moteur","standard","المحرك","محرك","moteur"] },
   { fr: "Culasse",              aliases: ["culasse","koussa","الكلاص","كلاص","ras lmoteur"] },
   { fr: "Joint de culasse",     aliases: ["joint de culasse","el joint","joint","الجوان","جوان الكلاص"] },
@@ -25,7 +21,6 @@ export const PARTS_ALIASES = [
   { fr: "Carter d'huile",       aliases: ["carter","carter huile","الكارتي","كارتي"] },
   { fr: "Joint de cache-culbuteurs", aliases: ["joint cache culbuteur","joint tared","cache culbuteur"] },
 
-  // ── 2. FILTRATION ──
   { fr: "Filtre à huile",       aliases: ["filtre a huile","filtre huile","filtre de l huile","فيلتر الزيت","فلتر زيت","filtre zit"] },
   { fr: "Filtre à air",         aliases: ["filtre a air","filtre air","فيلتر الهواء","فلتر هواء"] },
   { fr: "Filtre à gasoil",      aliases: ["filtre gasoil","filtre mazout","filtre a carburant","filtre diesel","فيلتر المازوت","فلتر مازوت"] },
@@ -33,7 +28,6 @@ export const PARTS_ALIASES = [
   { fr: "Filtre d'habitacle",   aliases: ["filtre climatiseur","filtre cabine","filtre antipollen","filtre clim","فيلتر الكليما"] },
   { fr: "Huile moteur",         aliases: ["huile","zit","le zit","10w40","5w40","15w40","الزيت","زيت","huile moteur"] },
 
-  // ── 3. INJECTION ──
   { fr: "Injecteur",            aliases: ["injecteur","injecteurs","bosch","delphi","البخاخات","بخاخ","انجكتور"] },
   { fr: "Pompe à injection",    aliases: ["pompe injection","pompe haute pression","pompe a injection","طرومبة الانجكسيون","طرومبة"] },
   { fr: "Pompe de gavage",      aliases: ["pompe gavage","pompe reservoir","pompe de gavage","طرومبة الريزرفوار"] },
@@ -42,14 +36,12 @@ export const PARTS_ALIASES = [
   { fr: "Boîtier papillon",     aliases: ["papillon","boitier papillon","le papillon","البابيون"] },
   { fr: "Intercooler",          aliases: ["intercooler","radiateur turbo","echangeur","الانتركولر"] },
 
-  // ── 4. ÉCHAPPEMENT ──
   { fr: "Collecteur d'échappement", aliases: ["collecteur","collecteur echappement","الكولكتور"] },
   { fr: "Catalyseur",           aliases: ["catalyseur","boite fap","convertisseur","الكتاليزور","كتاليزور"] },
   { fr: "Filtre à particules",  aliases: ["fap","filtre a particule","filtre particules","الفاب"] },
   { fr: "Vanne EGR",            aliases: ["vanne egr","egr","la vanne","الفان","فان egr"] },
   { fr: "Pot d'échappement",    aliases: ["pot","silencieux","echappement","chatement","chatmoun","الشاطمون","شاطمون","pot echappement"] },
 
-  // ── 5. EMBRAYAGE & TRANSMISSION ──
   { fr: "Kit d'embrayage",      aliases: ["embrayage","mecanisme","kit embrayage","clutch","kalatch","الامبرياج","امبرياج","disque embrayage"] },
   { fr: "Butée d'embrayage",    aliases: ["butee","butee embrayage","la butee","البوتي","بوتي"] },
   { fr: "Volant moteur",        aliases: ["volant moteur","volant bi-masse","bimasse","volant bimasse","الفولان"] },
@@ -58,7 +50,6 @@ export const PARTS_ALIASES = [
   { fr: "Cardan",               aliases: ["cardan","le cardan","cardan droit","cardan gauche","الكاردان","كاردان"] },
   { fr: "Soufflet de cardan",   aliases: ["soufflet","soufflet cardan","plastique cardan","الصوفلي"] },
 
-  // ── 6. TRAIN ROULANT / SUSPENSION ──
   { fr: "Amortisseur",          aliases: ["amortisseur","amortisseurs","الامورتيسور","امورتيسور","amorti"] },
   { fr: "Ressort de suspension", aliases: ["ressort","ressort amortisseur","ressort suspension","الروسور","روسور"] },
   { fr: "Triangle de suspension", aliases: ["triangle","bras de force","bras suspension","triangle suspension","التريانڨل","تريانقل"] },
@@ -73,7 +64,6 @@ export const PARTS_ALIASES = [
   { fr: "Moyeu de roue",        aliases: ["moyeu","fusee roue","fusee de roue","المويو"] },
   { fr: "Berceau moteur",       aliases: ["berceau","le berceau","chassis avant","البيرصو"] },
 
-  // ── 7. FREINAGE ──
   { fr: "Plaquettes de frein",  aliases: ["plaquettes","patins","les patins","plaquette frein","البلاكيت","بلاكيت","plaquette"] },
   { fr: "Disques de frein",     aliases: ["disques","disque frein","disques frein","الديسك","ديسك","disque"] },
   { fr: "Étrier de frein",      aliases: ["etrier","etrier frein","l etrier","الايتريي"] },
@@ -83,7 +73,6 @@ export const PARTS_ALIASES = [
   { fr: "Maître-cylindre",      aliases: ["maitre cylindre","pompe frein","pompe de frein","طرومبة الفران"] },
   { fr: "Câble de frein à main", aliases: ["cable frein","frein a main","cable frein main","cable de frein","كابل الفران"] },
 
-  // ── 8. REFROIDISSEMENT / CLIM ──
   { fr: "Radiateur moteur",     aliases: ["radiateur","radiateur moteur","الرادياتور","رادياتور","رديتور"] },
   { fr: "Vase d'expansion",     aliases: ["vase","bouteille eau","bouteille d eau","vase expansion","le vase","قارورة الماء"] },
   { fr: "Bouchon de vase",      aliases: ["bouchon radiateur","bouchon vase","bouchon bouteille","البوشون"] },
@@ -95,7 +84,6 @@ export const PARTS_ALIASES = [
   { fr: "Condenseur de climatisation", aliases: ["condenseur","radiateur clim","radiateur de clim","الكوندنسور"] },
   { fr: "Détendeur / Évaporateur", aliases: ["detendeur","evaporateur","l evaporateur","الديتاندور"] },
 
-  // ── 9. ÉLECTRICITÉ ──
   { fr: "Alternateur",          aliases: ["alternateur","l alternateur","الالترناتور","التيرناتور","الترنتور"] },
   { fr: "Démarreur",            aliases: ["demarreur","dimareur","el dimareur","le demarreur","الديمارور","ديمارور"] },
   { fr: "Batterie",             aliases: ["batterie","la batterie","البطارية","بطارية"] },
@@ -112,13 +100,11 @@ export const PARTS_ALIASES = [
   { fr: "Moteur de centralisation", aliases: ["centralisation","moteur fermeture","pompe centralisation","moteur centralisation"] },
   { fr: "Lève-vitre électrique", aliases: ["leve vitre","machine vitre","machine de vitre","leve vitre electrique","ماكينة الزجاج"] },
 
-  // ── 10. OPTIQUES ──
   { fr: "Phare / Optique avant", aliases: ["phare","optique","el far","far","l optique","الضو","ضو","phare avant","feu avant"] },
   { fr: "Feu arrière",          aliases: ["feu arriere","stop arriere","el feu","feu","ضو لور","stop"] },
   { fr: "Antibrouillard",       aliases: ["antibrouillard","loupes","les loupes","anti brouillard","الانتي برويار"] },
   { fr: "Clignotant",           aliases: ["clignotant","repetiteur","le clignotant","clignotant lateral","الكلينيوتان","كلينيوتان"] },
 
-  // ── 11. CARROSSERIE ──
   { fr: "Pare-chocs",           aliases: ["pare chocs","parshoc","el parshoc","pare choc","pare-choc","البارشوك","بارشوك"] },
   { fr: "Grille de calandre",   aliases: ["calandre","grille calandre","la calandre","الكلاندر"] },
   { fr: "Capot moteur",         aliases: ["capot","le capot","capot moteur","الكابو","كابو"] },
@@ -132,7 +118,6 @@ export const PARTS_ALIASES = [
   { fr: "Passage de roue",      aliases: ["pare boue","passage roue","plastique aile","garde boue","البارا بو"] },
   { fr: "Renfort de pare-chocs", aliases: ["absorbeur","renfort","renfort pare chocs","l absorbeur"] },
 
-  // ── 12. HABITACLE ──
   { fr: "Balai d'essuie-glace", aliases: ["essuie glace","balais","les balais","essuie-glace","balai essuie glace","الايسوي قلاص"] },
   { fr: "Commande de climatisation", aliases: ["commande clim","bloc chauffage","commande climatisation","commande de clim"] },
   { fr: "Tableau de bord",      aliases: ["compteur","tableau","tableau bord","le compteur","combine","الكونتور","كونتور"] },
@@ -141,19 +126,16 @@ export const PARTS_ALIASES = [
   { fr: "Ceinture de sécurité", aliases: ["ceinture","ceintures","ceinture securite","les ceintures","الحزام","حزام"] },
 ];
 
-// ── Normalisation : enlève accents, minuscules, tirets ──
 export function normalizeSearch(str) {
   return (str || "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")  // accents latins
+    .replace(/[\u0300-\u036f]/g, "")  
     .replace(/[-_]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-// ── Étend une requête avec tous ses synonymes ──
-// Ex: "phare" → ["phare", "optique", "far", "el far", "ضو", ...]
 export function expandQuery(query) {
   const q = normalizeSearch(query);
   if (!q) return [];
@@ -162,11 +144,9 @@ export function expandQuery(query) {
 
   for (const part of PARTS_ALIASES) {
     const allNames = [part.fr, ...part.aliases].map(normalizeSearch);
-    // Si la requête correspond à un des noms/alias → ajoute tous les autres
     const matches = allNames.some(name => name.includes(q) || q.includes(name));
     if (matches) {
       allNames.forEach(name => terms.add(name));
-      // Ajoute aussi les versions arabes non normalisées (pour matcher l'arabe brut)
       [part.fr, ...part.aliases].forEach(name => terms.add(name.toLowerCase()));
     }
   }
@@ -174,7 +154,6 @@ export function expandQuery(query) {
   return Array.from(terms).filter(Boolean);
 }
 
-// ── Vérifie si une annonce correspond à la requête (avec synonymes) ──
 export function listingMatchesQuery(listing, query) {
   if (!query?.trim()) return true;
 
@@ -186,7 +165,6 @@ export function listingMatchesQuery(listing, query) {
     [listing.title, listing.brand, listing.model, listing.description].join(" ")
   ).toLowerCase();
 
-  // Match si un des termes étendus est dans le titre/description
   return expandedTerms.some(term =>
     haystack.includes(term) || haystackRaw.includes(term)
   );
