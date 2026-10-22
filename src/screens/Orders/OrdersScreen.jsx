@@ -14,8 +14,6 @@ import ReportModal from "../../components/ReportModal"; // ← AJOUT
 
 const STATUS_C = { pending: C.warning, confirmed: C.info, shipped: C.accent, delivered: C.success, cancelled: C.danger };
 const STEPS = ["pending", "confirmed", "shipped", "delivered"];
-
-// ── Star Rating Component ──────────────────────────────────────────
 function StarRating({ value, onChange, size = 32 }) {
   return (
     <View style={{ flexDirection: "row", gap: 8, justifyContent: "center", marginVertical: 12 }}>
@@ -32,7 +30,6 @@ function StarRating({ value, onChange, size = 32 }) {
   );
 }
 
-// ── Rating Modal ───────────────────────────────────────────────────
 function RatingModal({ visible, order, userId, onClose, isRTL, t }) {
   const [stars, setStars]     = useState(0);
   const [comment, setComment] = useState("");
@@ -57,7 +54,6 @@ function RatingModal({ visible, order, userId, onClose, isRTL, t }) {
         createdAt:  serverTimestamp(),
       });
       await updateDoc(doc(db, "orders", order.id), { rated: true });
-      // Notifier le vendeur de la nouvelle évaluation
       Alert.alert(
         isRTL ? "شكراً!" : "Merci !",
         isRTL ? "تم إرسال تقييمك." : "Votre avis a été envoyé.",
@@ -112,13 +108,13 @@ function RatingModal({ visible, order, userId, onClose, isRTL, t }) {
   );
 }
 
-// ── Main Screen ───────────────────────────────────────────────────
+// ── Main Screen 
 export default function OrdersScreen({ navigation }) {
   const { t, isRTL } = useLanguage();
   const { user } = useAuthContext();
   const USER_ID = user?.uid || "";
   const [ratingOrder, setRatingOrder] = useState(null);
-  const [reportTarget, setReportTarget] = useState(null); // ← AJOUT { userId, userName }
+  const [reportTarget, setReportTarget] = useState(null); 
 const { data: myOrders, loading } = useCollection("orders", {
     filters: USER_ID ? [["buyerId", "==", USER_ID]] : [],
     max: 100,
