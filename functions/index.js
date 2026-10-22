@@ -1,8 +1,4 @@
-// ─────────────────────────────────────────────────────────────
-// Cloud Function: send an FCM push whenever a notification doc is
-// created at  notifications/{userId}/items/{notifId}.
-// This makes the app's existing createNotif() calls deliver real pushes.
-// ─────────────────────────────────────────────────────────────
+
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
@@ -13,30 +9,13 @@ const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { getAuth } = require("firebase-admin/auth");
 
-
-// 🔐 Identifiants de l'API SMS Vonage (Nexmo). Stockés en secrets Firebase
-// ⚠️ IMPORTANT: this project uses a NAMED Firestore database "tahar2"
-// (not the default one). Both the trigger and the reads must target it.
-const DATABASE_ID = "tahar2";
-
-// ⚠️ The function region MUST match your Firestore database location.
-// Your "tahar2" database lives in europe-west3 (confirmed by the deploy logs),
-// so the function + trigger must be there too.
+const DATABASE_ID = "******";
 const REGION = "europe-west3";
 
-// Admin account that receives report notifications (matches your Firestore rules).
 const ADMIN_EMAIL = "taharboussag13@gmail.com";
 
 initializeApp();
-// Scaling parameters tuned for nation-wide launch :
-//   • maxInstances 50  → cap raisonnable pour ~5000 users actifs simultanés
-//   • timeout 60s      → assez pour les workflows multi-step
-//   • memory 256MiB    → suffisant pour notre charge (texte + petites lectures)
-//   • concurrency 80   → bonne densité par instance (réduit le coût)
-//
-// minInstances : appliqué SEULEMENT à sendNotificationPush (la fonction la
-// plus critique pour l'UX, voir ligne ~32). Pour les autres, un cold start
-// occasionnel est acceptable.
+
 setGlobalOptions({
   region: REGION,
   maxInstances: 50,
@@ -45,7 +24,6 @@ setGlobalOptions({
   concurrency: 80,
 });
 
-// Bind explicitly to the named database (app + databaseId) — unambiguous.
 const db = getFirestore(getApp(), DATABASE_ID);
 
 exports.sendNotificationPush = onDocumentCreated(
@@ -53,8 +31,7 @@ exports.sendNotificationPush = onDocumentCreated(
     document: "notifications/{userId}/items/{notifId}",
     database: DATABASE_ID,
     region: REGION,
-    // 1 instance toujours chaude → push notifications instantanées (~$11/mois)
-    // au lieu de 3-5s de cold start qui ruinerait l'expérience utilisateur.
+  
     minInstances: 1,
   },
   async (event) => {
@@ -79,11 +56,6 @@ exports.sendNotificationPush = onDocumentCreated(
       console.log("[push] no tokens for", userId);
       return;
     }
-
-    // ── QUEUE BATCHING : si un push a été envoyé il y a < 20 sec, on skip
-    // (le doc reste dans Firestore, le user le verra dans son onglet notif).
-    // Évite la vibration spammeuse quand 5 messages arrivent en rafale.
-    // Exception : notifications "abonnement" et "report" toujours envoyées.
     if (!["abonnement", "report", "subscription_warning", "message", "commande"].includes(notif.type)) { 
       const ok = await shouldSendPush(userId);
       if (!ok) {
@@ -124,8 +96,6 @@ exports.sendNotificationPush = onDocumentCreated(
       return;
     }
     console.log(`[push] sent ${resp.successCount}/${tokens.length} to ${userId}`);
-
-    // Remove tokens that are no longer valid.
     const invalid = [];
     resp.responses.forEach((r, i) => {
       if (!r.success) {
@@ -149,7 +119,6 @@ exports.sendNotificationPush = onDocumentCreated(
   }
 );
 
-// ── Helper: write a notification doc (which triggers the push above). ──
 async function createNotifDoc(userId, { type, title, body, data = {} }) {
   const clean = {};
   for (const [k, v] of Object.entries(data)) {
@@ -168,10 +137,6 @@ async function createNotifDoc(userId, { type, title, body, data = {} }) {
       createdAt: FieldValue.serverTimestamp(),
     });
 }
-
-// ── Subscription ACTIVATED: notify the vendor when status becomes "active". ──
-// Approval is done outside the app (admin / console edits the user doc), so this
-// reacts to the status change and notifies + pushes automatically.
 exports.notifySubscriptionActivated = onDocumentUpdated(
   { document: "users/{userId}", database: DATABASE_ID, region: REGION },
   async (event) => {
@@ -183,7 +148,7 @@ exports.notifySubscriptionActivated = onDocumentUpdated(
       console.log("[sub] activated →", event.params.userId);
       await createNotifDoc(event.params.userId, {
         type: "abonnement",
-        title: "Abonnement activé ✅",
+        title: "Abonnement activé ",
         body: "Votre abonnement vendeur est maintenant actif. Bonnes ventes sur AutoPièces DZ !",
         data: { screen: "Subscription" },
       }).catch((e) => console.error("[sub] notif error:", e.message));
@@ -191,7 +156,6 @@ exports.notifySubscriptionActivated = onDocumentUpdated(
   }
 );
 
-// ── Subscription EXPIRING: daily reminder at J-7, J-3, J-1. ──
 exports.subscriptionExpiryReminder = onSchedule(
   { schedule: "every day 09:00", timeZone: "Africa/Algiers", region: REGION },
   async () => {
@@ -225,8 +189,6 @@ exports.subscriptionExpiryReminder = onSchedule(
     console.log(`[sub] expiry reminders sent: ${sent}`);
   }
 );
-
-// ── REPORT filed: notify the admin (looked up by email → uid). ──
 exports.notifyAdminOnReport = onDocumentCreated(
   { document: "reports/{reportId}", database: DATABASE_ID, region: REGION },
   async (event) => {
@@ -250,13 +212,6 @@ exports.notifyAdminOnReport = onDocumentCreated(
   }
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SERVER-SIDE NOTIFICATION GENERATORS
-// These create notification docs automatically from Firestore events, so the
-// app no longer has to. Works regardless of which app build is installed.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ── NEW ORDER → notify the seller ──
 exports.notifyOnNewOrder = onDocumentCreated(
   { document: "orders/{orderId}", database: DATABASE_ID, region: REGION },
   async (event) => {
@@ -271,8 +226,6 @@ exports.notifyOnNewOrder = onDocumentCreated(
     }).catch((e) => console.error("[order] notif error:", e.message));
   }
 );
-
-// ── ORDER STATUS CHANGE → notify the buyer ──
 const STATUS_BODIES = {
   confirmed: "Votre commande a été confirmée ✅",
   shipping:  "Votre commande est en route ! 🚚",
@@ -298,8 +251,6 @@ exports.notifyOnOrderStatusChange = onDocumentUpdated(
     }).catch((e) => console.error("[order-status] notif error:", e.message));
   }
 );
-
-// ── NEW MESSAGE → notify the other participant ──
 exports.notifyOnNewMessage = onDocumentCreated(
   {
     document: "conversations/{convId}/messages/{msgId}",
@@ -309,8 +260,6 @@ exports.notifyOnNewMessage = onDocumentCreated(
   async (event) => {
     const msg = event.data?.data() || {};
     if (!msg.senderId) return;
-
-    // Look up the conversation to find the other participant
     let conv;
     try {
       conv = (await db.doc(`conversations/${event.params.convId}`).get()).data() || {};
@@ -343,11 +292,6 @@ exports.notifyOnNewMessage = onDocumentCreated(
   }
 );
 
-// ── SUBSCRIPTION REQUEST APPROVED → extend the vendor's subscription ──
-// You set `status` to "approved" on a subscription_requests doc; this function
-// reads the plan/months on that doc, extends the user's currentPeriodEnd, and
-// flips the subscription to "active". The notifySubscriptionActivated function
-// then fires automatically and sends the "Abonnement activé ✅" push.
 exports.applySubscriptionApproval = onDocumentUpdated(
   { document: "subscription_requests/{requestId}", database: DATABASE_ID, region: REGION },
   async (event) => {
@@ -356,14 +300,10 @@ exports.applySubscriptionApproval = onDocumentUpdated(
     if (before.status === after.status) return;
     if (after.status !== "approved") return;
     if (!after.userId) return;
-
-    // Avoid double-processing if approved again
     if (after.appliedAt) {
       console.log("[sub-approve] already applied, skipping");
       return;
     }
-
-    // How many months to add (defaults to 1 if older docs don't have it).
     const months = Number(after.months) || 1;
 
     let userSub = {};
@@ -373,9 +313,6 @@ exports.applySubscriptionApproval = onDocumentUpdated(
       console.error("[sub-approve] read user error:", e.message);
       return;
     }
-
-    // Extend from the later of (now, current currentPeriodEnd) so paying early
-    // doesn't waste days.
     const now = Date.now();
     const currentEndMs = userSub.currentPeriodEnd
       ? new Date(userSub.currentPeriodEnd).getTime()
@@ -398,15 +335,11 @@ exports.applySubscriptionApproval = onDocumentUpdated(
         },
         { merge: true }
       );
-
-      // Mark the request as applied so we don't re-run on further edits
       await event.data.after.ref.update({
         appliedAt: FieldValue.serverTimestamp(),
         appliedMonths: months,
         appliedNewEnd: newEnd.toISOString(),
       });
-
-      // Bookkeeping
       await db.collection("subscription_history").add({
         userId: after.userId,
         action: "renewal_approved",
@@ -427,36 +360,26 @@ exports.applySubscriptionApproval = onDocumentUpdated(
   }
 );
 
-// ── BATCHING : si plusieurs messages dans 30s, on groupe en 1 seul push ──
-// Patron "queue + debounce" : évite que 5 messages successifs = 5 vibrations.
-// Stocke un timestamp dans users/{uid}/inbox/last_push_at et skip si récent.
 async function shouldSendPush(userId) {
   try {
     const ref = db.doc(`users/${userId}/_inbox/state`);
     const snap = await ref.get();
     const lastPush = snap.exists ? (snap.get("lastPushAt")?.toMillis?.() || 0) : 0;
     const now = Date.now();
-    // Si moins de 20 sec depuis le dernier push, on skip (on garde le doc Firestore)
     if (now - lastPush < 20_000) return false;
     await ref.set({ lastPushAt: new Date() }, { merge: true });
     return true;
   } catch (e) {
     console.error("[batch] error:", e.message);
-    return true; // en cas d'erreur, on envoie quand même
-  }
+    return true; 
 }
 
-// ── ANTI-SPAM NOTIFICATIONS : un user ne peut pas spammer un autre ──
-// Si un sender (request.auth.uid != recipient) crée > 20 notifs pour la même
-// cible dans 10 minutes, on supprime les suivantes.
 exports.antiSpamNotifications = onDocumentCreated(
   { document: "notifications/{userId}/items/{itemId}", database: DATABASE_ID, region: REGION },
   async (event) => {
     const { userId, itemId } = event.params;
     const notif = event.data?.data() || {};
     const ref = event.data?.ref;
-    // Notifs créées par les Cloud Functions n'ont pas d'expéditeur identifiable.
-    // On rate-limit uniquement les notifs reçues par utilisateur (toutes sources).
     try {
       const tenMinAgo = Date.now() - 10 * 60 * 1000;
       const snap = await db
@@ -476,17 +399,12 @@ exports.antiSpamNotifications = onDocumentCreated(
   }
 );
 
-// ── VALIDATE & SANITIZE NEW LISTINGS (anti-spam, anti-XSS, rate limit) ──
-// Runs on create: rejects spam, validates required fields, rate-limits per seller.
-// Marks problematic listings as status: "blocked" so they don't appear publicly.
 exports.validateNewListing = onDocumentCreated(
   { document: "listings/{listingId}", database: DATABASE_ID, region: REGION },
   async (event) => {
     const l = event.data?.data() || {};
     const ref = event.data?.ref;
     const issues = [];
-
-    // Required fields
     if (!l.title || typeof l.title !== "string" || l.title.length < 3) {
       issues.push("title too short");
     }
@@ -497,7 +415,6 @@ exports.validateNewListing = onDocumentCreated(
     }
     if (l.description && l.description.length > 5000) issues.push("description too long");
 
-    // Rudimentary spam patterns
     const text = `${l.title || ""} ${l.description || ""}`.toLowerCase();
     const spamHits = [/https?:\/\/[^\s]+\s?https?:\/\/[^\s]+/, /\bcasino|porn|crypto|airdrop/i];
     if (spamHits.some((rx) => rx.test(text))) issues.push("spam content");
@@ -524,8 +441,6 @@ exports.validateNewListing = onDocumentCreated(
     }
   }
 );
-
-// ── NEW RATING → notify the seller ──
 exports.notifyOnNewRating = onDocumentCreated(
   { document: "ratings/{ratingId}", database: DATABASE_ID, region: REGION },
   async (event) => {
