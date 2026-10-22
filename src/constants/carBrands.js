@@ -1,28 +1,18 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Marques et modèles de voitures présents sur le marché algérien (2026).
-// Inclut les marques européennes classiques + l'explosion des marques chinoises
-// (Geely, Chery, BYD, Changan, JAC, Haval, GAC, MG…) qui dominent maintenant.
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const CAR_BRANDS = [
-  // ── Européennes (historique) ──
   "Renault", "Peugeot", "Citroën", "Volkswagen", "Dacia",
   "Fiat", "Opel", "Seat", "Skoda", "Ford",
   "Mercedes", "BMW", "Audi", "Jeep", "Volvo", "Land Rover", "Porsche", "Mini",
-  // ── Asiatiques ──
   "Toyota", "Hyundai", "Kia", "Nissan", "Honda",
   "Suzuki", "Suzuki Maruti", "Mitsubishi", "Mazda", "Subaru", "Isuzu",
-  // ── Chinoises (explosion du marché algérien 2024-2026) ──
   "Geely", "Chery", "BYD", "Changan", "JAC",
   "Haval", "MG", "GAC", "Dongfeng", "Faw",
   "Foton", "BAIC", "Brilliance", "Lifan", "Great Wall",
   "Chana", "DFSK", "Zotye", "Karry", "Hongqi", "Wuling",
-  // ── Russes / Indiennes / autres ──
   "Lada", "Chevrolet", "Tata", "Mahindra", "Daewoo",
 ];
 
 export const CAR_MODELS = {
-  // ── EUROPÉENNES ─────────────────────────────────────────────
   Renault:    ["Clio","Symbol","Mégane","Megane","Logan","Duster","Koleos","Talisman","Sandero","Kangoo","Trafic","Master","Captur","Laguna","R19","R21","Twingo","Scenic","Kadjar","Express","Fluence","Latitude","Modus"],
   Peugeot:    ["206","207","208","301","307","308","405","406","407","508","1007","2008","3008","5008","Partner","Expert","Boxer","Rifter","Bipper","Landtrek","J5","J9","504","505"],
   Citroën:    ["C3","C4","C5","Berlingo","Xsara","Picasso","C-Elysée","Jumper","Jumpy","DS3","DS4","DS5","C-Crosser","C1","C2","C4 Cactus","Nemo","AX","BX","ZX","Saxo"],
@@ -42,7 +32,6 @@ export const CAR_MODELS = {
   Porsche:    ["911","Cayenne","Macan","Panamera","Boxster","Cayman","Taycan"],
   Mini:       ["Cooper","Countryman","Clubman","Paceman","One","John Cooper Works"],
 
-  // ── ASIATIQUES ──────────────────────────────────────────────
   Toyota:     ["Corolla","Yaris","Camry","RAV4","Hilux","Land Cruiser","Avensis","Fortuner","C-HR","Auris","Prius","Yaris Cross","Land Cruiser Prado","Hiace","Coaster","Verso","Aygo","Urban Cruiser","Innova","Rush","Highlander","4Runner","Tacoma","Tundra"],
   Hyundai:    ["i10","i20","i30","i40","Tucson","Santa Fe","Accent","Elantra","Creta","Kona","Sonata","Grand i10","Bayon","Venue","Palisade","Atos","Getz","Verna","Matrix","Terracan","H1","H100","Starex","ix35","ix20"],
   Kia:        ["Picanto","Rio","Sportage","Sorento","Cerato","Soul","Stonic","Seltos","K5","Niro","Carnival","Ceed","Optima","Carens","Spectra","Sephia","Pride","Bongo","Pregio","XCeed","EV6"],
@@ -55,7 +44,6 @@ export const CAR_MODELS = {
   Subaru:     ["Impreza","Forester","Outback","XV","Legacy","BRZ","Ascent","Justy","Tribeca"],
   Isuzu:      ["D-Max","MU-X","Trooper","Rodeo","N-Series","F-Series","Panther","Ascender"],
 
-  // ── CHINOISES ───────────────────────────────────────────────
   Geely:      ["Coolray","Emgrand","GX3 Pro","Starray","Okavango","Tugella","Atlas","Monjaro","Boyue","GC2","GC4","GC7","Panda","CK","MK","GX7","EC7","Vision","Preface"],
   Chery:      ["Tiggo 2","Tiggo 3","Tiggo 4","Tiggo 4 Pro","Tiggo 5","Tiggo 7","Tiggo 7 Pro","Tiggo 8","Tiggo 8 Pro","Arrizo 3","Arrizo 5","Arrizo 6","Arrizo 8","QQ","QQ3","QQ6","Omoda 5","Omoda 7","Fulwin","Envy","Face","Amulet"],
   BYD:        ["Atto 3","Dolphin","Seal","Han","Tang","Song","Yuan","F0","F3","F6","Qin","Seagull","Sirui","M6","G3","G5","S6","S7","E5","E6"],
@@ -78,7 +66,6 @@ export const CAR_MODELS = {
   Hongqi:     ["H5","H7","H9","HS5","HS7","E-HS9"],
   Wuling:     ["Hongguang","Hongguang Mini EV","Bingo","Almaz","Air EV","Sunshine","N100"],
 
-  // ── RUSSES / INDIENNES / AUTRES ─────────────────────────────
   Lada:       ["Niva","Niva Legend","Vesta","Granta","Largus","Priora","Kalina","XRAY","Samara","Riva","2101","2107","2110","2114"],
   Chevrolet:  ["Aveo","Cruze","Captiva","Spark","Malibu","Trax","Optra","Tahoe","Silverado","Blazer","Colorado","Camaro","Cavalier","Suburban","Astra","Nubira","Lacetti","Kalos","Matiz","Epica","Orlando"],
   Tata:       ["Indica","Indigo","Nano","Xenon","Telcoline","Sumo","Safari","Nexon","Punch","Harrier","Tigor","Tiago","Altroz","Ace","Zest","Bolt"],
