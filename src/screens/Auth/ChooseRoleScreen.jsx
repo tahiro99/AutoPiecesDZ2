@@ -43,7 +43,6 @@ const [confirmPassword, setConfirmPassword] = useState("");
   try {
     const userEmail = (user.email || email.trim()).toLowerCase();
     
-    // Lier email + password au compte Facebook
     const credential = EmailAuthProvider.credential(userEmail, password);
     await linkWithCredential(auth.currentUser, credential);
 
