@@ -21,7 +21,6 @@ export default function MessagesListScreen({ navigation }) {
   );
   const total = myConvs.reduce((s, c) => s + (c.unread || 0), 0);
 
-  // Récupère les noms des utilisateurs manquants
   useEffect(() => {
     const isVendeur = profile?.role === "vendeur";
     const missing = myConvs.filter(c => {
@@ -76,7 +75,6 @@ export default function MessagesListScreen({ navigation }) {
             const isVendeur = profile?.role === "vendeur";
             const otherId   = isVendeur ? item.buyerId : item.sellerId;
 
-            // Nom depuis Firestore conversation → fallback depuis users collection
             const otherName = isVendeur
               ? (item.buyerName || userNames[otherId] || (isRTL ? "عميل" : "Client"))
               : (item.sellerName || userNames[otherId] || (isRTL ? "بائع" : "Vendeur"));
