@@ -1,13 +1,4 @@
-/**
- * MapPicker / MapView — map inside a WebView.
- * Tries Google Maps (if the JS-API key is valid). If Google fails for ANY reason
- * (key restricted, billing off, API not enabled, offline), it AUTOMATICALLY falls
- * back to OpenStreetMap so the map always loads. No native module → ships OTA.
- *
- * To use Google Maps: paste a Maps JavaScript API key below (Application
- * restrictions = None, Maps JavaScript API enabled, billing on). Otherwise the
- * map still works via OpenStreetMap — no key needed.
- */
+
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { WebView } from "react-native-webview";
