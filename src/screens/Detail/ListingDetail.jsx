@@ -35,8 +35,6 @@ export default function ListingDetail({ route, navigation }) {
   const row       = isRTL ? "row-reverse" : "row";
 
   useEffect(() => { incrementViews(listing.id).catch(() => {}); }, []);
-
-  // ── PARTAGER ──
   const handleShare = async () => {
     try {
       await Share.share({
@@ -48,7 +46,6 @@ export default function ListingDetail({ route, navigation }) {
     } catch (e) {}
   };
 
-  // ── CONTACTER ──
   const handleContact = async () => {
     if (!user) {
       Alert.alert(t("loginRequired"), t("loginToContact"), [
@@ -71,7 +68,6 @@ export default function ListingDetail({ route, navigation }) {
     setContacting(false);
   };
 
-  // ── ACHETER ──
   const handleBuy = () => {
     if (!user) {
       Alert.alert(t("loginRequired"), isRTL ? "سجل دخولك للشراء." : "Connectez-vous pour acheter.", [
@@ -87,7 +83,6 @@ export default function ListingDetail({ route, navigation }) {
     navigation.navigate("Cart", { directBuy: listing });
   };
 
-  // ── FAVORIS ──
   const toggleFav = async () => {
     if (!user) { navigation.navigate("Login"); return; }
     try {
