@@ -7,13 +7,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { C } from "../../constants/theme";
 import { useLanguage } from "../../i18n/languagecontext";
 import { CAR_BRANDS, CAR_MODELS } from "../../constants/carBrands";
-// Et dans le composant :
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DONNÉES CATALOGUE — Marché algérien 100% réel
-// ─────────────────────────────────────────────────────────────────────────────
 
-// Construit la liste à partir du fichier centralisé (35+ marques dont chinoises)
 const BRANDS = CAR_BRANDS.map((name) => ({
   id: name.toLowerCase().replace(/\s+/g, "-"),
   name,
@@ -440,9 +435,6 @@ const pc = StyleSheet.create({
   qualityPrice: { fontSize: 9, color: C.textMuted, fontWeight: "600" },
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ÉCRAN PRINCIPAL
-// ─────────────────────────────────────────────────────────────────────────────
 export default function CatalogueScreen() {
   const { isRTL }                     = useLanguage();
   const [search, setSearch]           = useState("");
