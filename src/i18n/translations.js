@@ -2,14 +2,12 @@
 
 export const translations = {
   fr: {
-    // ── Navigation ──────────────────────────────────
     home:        "Accueil",
     catalogue:   "Catalogue",
     messages:    "Messages",
     profile:     "Profil",
     dashboard:   "Dashboard",
 
-    // ── Général ──────────────────────────────────────
     loading:     "Chargement...",
     save:        "Enregistrer",
     cancel:      "Annuler",
@@ -29,7 +27,6 @@ export const translations = {
     add:         "Ajouter",
     next:        "Suivant",
 
-    // ── Auth ──────────────────────────────────────────
     login:           "Se connecter",
     logout:          "Se déconnecter",
     register:        "Créer un compte",
@@ -47,7 +44,6 @@ export const translations = {
     verified:        "Vérifié",
     notVerified:     "Non vérifié",
 
-    // ── Accueil client ────────────────────────────────
     hello:           "Bonjour",
     findParts:       "Trouvez vos pièces auto",
     searchPlaceholder: "Rechercher une pièce, marque...",
@@ -67,7 +63,6 @@ export const translations = {
     wilayas:         "Wilayas",
     deliveryAvailable: "🚚 Livraison disponible partout en Algérie",
 
-    // ── Accueil vendeur ───────────────────────────────
     sell:            "Vendre",
     publishListing:  "Publier une annonce",
     myListings:      "Mes annonces",
@@ -77,7 +72,6 @@ export const translations = {
     fastDelivery:    "58 wilayas — livraison rapide — vendeurs vérifiés",
     announcements:   "ANNONCES",
 
-    // ── Détail annonce ────────────────────────────────
     listingDetail:   "Détail annonce",
     contact:         "Contacter",
     buy:             "Acheter",
@@ -100,7 +94,6 @@ export const translations = {
     photos:          "photos",
     compatibleVehicles: "Véhicules compatibles",
 
-    // ── Publier annonce ───────────────────────────────
     publishAnnounce: "Publier une annonce",
     title:           "TITRE",
     price:           "PRIX (DA)",
@@ -138,7 +131,6 @@ export const translations = {
     compatSub:       "Sélectionnez tous les modèles compatibles",
     selectedVehicles:"véhicule(s) sélectionné(s)",
 
-    // ── Commander ─────────────────────────────────────
     order:           "Commander",
     deliveryWilaya:  "Wilaya de livraison",
     fullAddress:     "Adresse complète",
@@ -170,7 +162,6 @@ export const translations = {
     emptyCartSub:    "Sélectionnez une pièce depuis les annonces",
     deliveryFee:     "Frais de livraison vers",
 
-    // ── Profil ────────────────────────────────────────
     myAccount:       "MON COMPTE",
     myOrders:        "Mes commandes",
     myFavorites:     "Mes favoris",
@@ -189,7 +180,6 @@ export const translations = {
     myListingsMenu:  "Mes annonces",
     clientMessages:  "Messages clients",
 
-    // ── Dashboard vendeur ─────────────────────────────
     sellerDashboard: "Dashboard Vendeur",
     ordersTab:       "Commandes",
     listingsTab:     "Annonces",
@@ -217,7 +207,6 @@ export const translations = {
     totalReceived:   "Total reçu",
     orderedOn:       "Commandé le",
 
-    // ── Messages ──────────────────────────────────────
     writeMessage:    "Écrire un message...",
     contactSeller:   "Contacter le vendeur",
     loginToContact:  "Connectez-vous pour contacter le vendeur.",
@@ -225,7 +214,6 @@ export const translations = {
     activeConversations: "Conversations actives",
     noConversations: "Aucune conversation",
 
-    // ── Notifications ─────────────────────────────────
     allNotifs:       "Tout",
     orderNotifs:     "Commandes",
     messageNotifs:   "Messages",
@@ -235,7 +223,6 @@ export const translations = {
     markAllRead:     "Tout lire",
     loginToSeeNotifs:"Connectez-vous pour voir vos notifications",
 
-    // ── Catalogue ─────────────────────────────────────
     catalogueParts:  "Catalogue Pièces",
     algerianMarket:  "Marché algérien — Prix indicatifs en DA",
     searchPart:      "Chercher une pièce...",
@@ -252,26 +239,22 @@ export const translations = {
     allCategories:   "Toutes les catégories",
     parts:           "pièces",
 
-    // ── Favoris ───────────────────────────────────────
     myFavs:          "Mes Favoris",
     noFavs:          "Aucun favori",
     noFavsSub:       "Ajoutez des pièces en favoris",
 
-    // ── Commandes ─────────────────────────────────────
     myOrdersTitle:   "Mes Commandes",
     noOrders:        "Aucune commande",
     noOrdersSub:     "Vos commandes apparaîtront ici",
   },
 
   ar: {
-    // ── Navigation ──────────────────────────────────
     home:        "الرئيسية",
     catalogue:   "الكتالوج",
     messages:    "الرسائل",
     profile:     "الملف الشخصي",
     dashboard:   "لوحة التحكم",
 
-    // ── Général ──────────────────────────────────────
     loading:     "جاري التحميل...",
     save:        "حفظ",
     cancel:      "إلغاء",
@@ -291,7 +274,6 @@ export const translations = {
     add:         "إضافة",
     next:        "التالي",
 
-    // ── Auth ──────────────────────────────────────────
     login:           "تسجيل الدخول",
     logout:          "تسجيل الخروج",
     register:        "إنشاء حساب",
@@ -309,7 +291,6 @@ export const translations = {
     verified:        "موثق",
     notVerified:     "غير موثق",
 
-    // ── Accueil client ────────────────────────────────
     hello:           "مرحبا",
     findParts:       "ابحث عن قطع غيار سيارتك",
     searchPlaceholder: "ابحث عن قطعة، ماركة...",
@@ -329,7 +310,6 @@ export const translations = {
     wilayas:         "ولاية",
     deliveryAvailable: "🚚 التوصيل متاح في جميع أنحاء الجزائر",
 
-    // ── Accueil vendeur ───────────────────────────────
     sell:            "بيع",
     publishListing:  "نشر إعلان",
     myListings:      "إعلاناتي",
@@ -339,7 +319,6 @@ export const translations = {
     fastDelivery:    "58 ولاية — توصيل سريع — بائعون موثوقون",
     announcements:   "إعلان",
 
-    // ── Détail annonce ────────────────────────────────
     listingDetail:   "تفاصيل الإعلان",
     contact:         "تواصل",
     buy:             "شراء",
@@ -362,7 +341,6 @@ export const translations = {
     photos:          "صور",
     compatibleVehicles: "السيارات المتوافقة",
 
-    // ── Publier annonce ───────────────────────────────
     publishAnnounce: "نشر إعلان",
     title:           "العنوان",
     price:           "السعر (دج)",
@@ -400,7 +378,6 @@ export const translations = {
     compatSub:       "اختر جميع الموديلات المتوافقة مع هذه القطعة",
     selectedVehicles:"سيارة مختارة",
 
-    // ── Commander ─────────────────────────────────────
     order:           "طلب",
     deliveryWilaya:  "ولاية التوصيل",
     fullAddress:     "العنوان الكامل",
@@ -432,7 +409,6 @@ export const translations = {
     emptyCartSub:    "اختر قطعة من الإعلانات",
     deliveryFee:     "رسوم التوصيل إلى",
 
-    // ── Profil ────────────────────────────────────────
     myAccount:       "حسابي",
     myOrders:        "طلباتي",
     myFavorites:     "مفضلتي",
@@ -451,7 +427,7 @@ export const translations = {
     myListingsMenu:  "إعلاناتي",
     clientMessages:  "رسائل العملاء",
 
-    // ── Dashboard vendeur ─────────────────────────────
+    // Dashboard vendeur 
     sellerDashboard: "لوحة تحكم البائع",
     ordersTab:       "الطلبات",
     listingsTab:     "الإعلانات",
@@ -479,7 +455,6 @@ export const translations = {
     totalReceived:   "المبلغ الإجمالي",
     orderedOn:       "تاريخ الطلب",
 
-    // ── Messages ──────────────────────────────────────
     writeMessage:    "اكتب رسالة...",
     contactSeller:   "تواصل مع البائع",
     loginToContact:  "سجل دخولك للتواصل مع البائع.",
@@ -487,7 +462,6 @@ export const translations = {
     activeConversations: "المحادثات النشطة",
     noConversations: "لا توجد محادثات",
 
-    // ── Notifications ─────────────────────────────────
     allNotifs:       "الكل",
     orderNotifs:     "الطلبات",
     messageNotifs:   "الرسائل",
@@ -497,7 +471,6 @@ export const translations = {
     markAllRead:     "تحديد الكل كمقروء",
     loginToSeeNotifs:"سجل دخولك لرؤية إشعاراتك",
 
-    // ── Catalogue ─────────────────────────────────────
     catalogueParts:  "كتالوج قطع الغيار",
     algerianMarket:  "السوق الجزائري — أسعار استرشادية بالدينار",
     searchPart:      "ابحث عن قطعة...",
@@ -514,12 +487,10 @@ export const translations = {
     allCategories:   "جميع الفئات",
     parts:           "قطعة",
 
-    // ── Favoris ───────────────────────────────────────
     myFavs:          "مفضلتي",
     noFavs:          "لا توجد مفضلة",
     noFavsSub:       "أضف قطعاً إلى المفضلة",
 
-    // ── Commandes ─────────────────────────────────────
     myOrdersTitle:   "طلباتي",
     noOrders:        "لا توجد طلبات",
     noOrdersSub:     "ستظهر طلباتك هنا",
