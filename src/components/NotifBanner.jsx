@@ -1,6 +1,3 @@
-// In-app banner for FCM messages received while the app is in the foreground
-// (FCM does not auto-display foreground messages). Also wires tap-to-open
-// handlers for background / quit states.
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -37,15 +34,12 @@ export default function NotifBanner() {
   };
 
   useEffect(() => {
-    // Foreground messages
     const unsubMsg = messaging().onMessage(show);
 
-    // Tapped notification while app was in background
     const unsubOpen = messaging().onNotificationOpenedApp((rm) => {
       routeFromData(rm?.data);
     });
 
-    // Opened from a quit state by tapping a notification
     messaging()
       .getInitialNotification()
       .then((rm) => {
